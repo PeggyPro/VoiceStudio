@@ -18,6 +18,7 @@ build/
 .github
 .claude
 .agents
+bun.lock
 
 # ─────────────────────────────────────────────────────────────────────────
 #  Node / Turborepo / Tauri
