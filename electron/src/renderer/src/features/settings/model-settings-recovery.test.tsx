@@ -5,7 +5,15 @@ import {
   notifyManager,
   onlineManager,
 } from '@tanstack/react-query';
-import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  within,
+} from '@testing-library/react';
 import { createInstance } from 'i18next';
 import type { ReactNode } from 'react';
 import { I18nextProvider } from 'react-i18next';
@@ -160,7 +168,10 @@ it('keeps polling after a 502 with cached ready engines and stops after recovery
 it('waits for a slow engine list without an error or overlapping HTTP requests', async () => {
   let respond!: (response: Response) => void;
   getEngines.mockImplementationOnce(
-    () => new Promise<Response>((resolve) => { respond = resolve; }),
+    () =>
+      new Promise<Response>((resolve) => {
+        respond = resolve;
+      }),
   );
   const { wrapper } = setup();
   const { result } = renderHook(useEngines, { wrapper });
@@ -169,7 +180,9 @@ it('waits for a slow engine list without an error or overlapping HTTP requests',
   expect(result.current.isLoading).toBe(true);
   expect(result.current.isError).toBe(false);
   expect(getEngines).toHaveBeenCalledTimes(1);
-  await act(async () => { respond(Response.json(engines)); });
+  await act(async () => {
+    respond(Response.json(engines));
+  });
   expect(result.current.activeTtsReady).toBe(true);
   expect(result.current.isLoading).toBe(false);
   expect(selectEngine).not.toHaveBeenCalled();
