@@ -380,7 +380,8 @@
     "select": "Pilih",
     "selected": "Dipilih",
     "change": "Ganti mesin",
-    "failed": "Mesin tidak dapat diganti. Coba lagi."
+    "failed": "Mesin tidak dapat diganti. Coba lagi.",
+    "load_failed": "Daftar mesin tidak dapat dimuat. Coba lagi."
   },
   "modelMaintenance": {
     "download": "Unduh",

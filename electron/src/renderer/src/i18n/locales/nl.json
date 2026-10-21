@@ -380,7 +380,8 @@
     "select": "Selecteer",
     "selected": "Geselecteerd",
     "change": "Engine wijzigen",
-    "failed": "De engine kon niet worden gewijzigd. Probeer opnieuw."
+    "failed": "De engine kon niet worden gewijzigd. Probeer opnieuw.",
+    "load_failed": "De engines konden niet worden geladen. Probeer opnieuw."
   },
   "modelMaintenance": {
     "download": "Downloaden",

@@ -380,7 +380,8 @@
     "select": "選擇",
     "selected": "已選取",
     "change": "更換引擎",
-    "failed": "無法更換引擎，請重試。"
+    "failed": "無法更換引擎，請重試。",
+    "load_failed": "無法載入引擎清單，請重試。"
   },
   "modelMaintenance": {
     "download": "下載",

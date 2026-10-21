@@ -727,7 +727,8 @@
     "select": "Select",
     "selected": "Selected",
     "change": "Change engine",
-    "failed": "Could not change the engine. Try again."
+    "failed": "Could not change the engine. Try again.",
+    "load_failed": "Could not load engines. Try again."
   },
   "modelMaintenance": {
     "download": "Download",

@@ -380,7 +380,8 @@
     "select": "chọn",
     "selected": "Đã chọn",
     "change": "Đổi bộ máy",
-    "failed": "Không thể đổi bộ máy. Hãy thử lại."
+    "failed": "Không thể đổi bộ máy. Hãy thử lại.",
+    "load_failed": "Không thể tải danh sách bộ máy. Hãy thử lại."
   },
   "modelMaintenance": {
     "download": "Tải xuống",

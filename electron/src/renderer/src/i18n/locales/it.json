@@ -382,7 +382,8 @@
     "select": "Seleziona",
     "selected": "Selezionato",
     "change": "Cambia motore",
-    "failed": "Impossibile cambiare motore. Riprova."
+    "failed": "Impossibile cambiare motore. Riprova.",
+    "load_failed": "Impossibile caricare l'elenco dei motori. Riprova."
   },
   "modelMaintenance": {
     "download": "Scarica",

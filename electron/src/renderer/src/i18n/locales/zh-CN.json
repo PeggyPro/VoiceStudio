@@ -393,7 +393,8 @@
     "select": "选择",
     "selected": "已选择",
     "change": "更换引擎",
-    "failed": "无法更换引擎，请重试。"
+    "failed": "无法更换引擎，请重试。",
+    "load_failed": "无法加载引擎列表，请重试。"
   },
   "modelMaintenance": {
     "download": "下载",

@@ -380,7 +380,8 @@
     "select": "Seç",
     "selected": "Seçili",
     "change": "Motoru değiştir",
-    "failed": "Motor değiştirilemedi. Tekrar deneyin."
+    "failed": "Motor değiştirilemedi. Tekrar deneyin.",
+    "load_failed": "Motor listesi yüklenemedi. Tekrar deneyin."
   },
   "modelMaintenance": {
     "download": "İndir",

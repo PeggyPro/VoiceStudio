@@ -380,7 +380,8 @@
     "select": "Auswählen",
     "selected": "Ausgewählt",
     "change": "Engine wechseln",
-    "failed": "Die Engine konnte nicht gewechselt werden. Erneut versuchen."
+    "failed": "Die Engine konnte nicht gewechselt werden. Erneut versuchen.",
+    "load_failed": "Die Engines konnten nicht geladen werden. Erneut versuchen."
   },
   "modelMaintenance": {
     "download": "Herunterladen",

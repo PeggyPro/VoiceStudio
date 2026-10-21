@@ -382,7 +382,8 @@
     "select": "Selecione",
     "selected": "Selecionado",
     "change": "Alterar mecanismo",
-    "failed": "Não foi possível alterar o mecanismo. Tente novamente."
+    "failed": "Não foi possível alterar o mecanismo. Tente novamente.",
+    "load_failed": "Não foi possível carregar a lista de mecanismos. Tente novamente."
   },
   "modelMaintenance": {
     "download": "Baixar",

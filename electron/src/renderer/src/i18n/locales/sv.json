@@ -380,7 +380,8 @@
     "select": "Välj",
     "selected": "Vald",
     "change": "Byt motor",
-    "failed": "Kunde inte byta motor. Försök igen."
+    "failed": "Kunde inte byta motor. Försök igen.",
+    "load_failed": "Kunde inte ladda motorlistan. Försök igen."
   },
   "modelMaintenance": {
     "download": "Ladda ner",
