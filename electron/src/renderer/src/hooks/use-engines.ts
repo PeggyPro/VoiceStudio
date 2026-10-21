@@ -6,9 +6,9 @@ import { useBackendStatus } from './use-backend-status';
 import { isBackendReachable } from '@shared/utils/backendStage';
 
 const ENGINES_STALE_MS = 30_000;
-// While the selected TTS engine is unusable, poll: the user may be installing
-// it in Settings and the composer should unlock without a restart.
-const ENGINES_POLL_WHILE_UNREADY_MS = 15_000;
+// Poll while the selected TTS engine is unusable or the last refresh failed.
+// Keep recovery running even when a failed refresh retains ready cached data.
+const ENGINES_RECOVERY_POLL_MS = 15_000;
 
 export interface UseEnginesResult {
   data?: EnginesResponse;
@@ -47,7 +47,9 @@ export function useEngines(): UseEnginesResult {
     staleTime: ENGINES_STALE_MS,
     enabled: isBackendReachable(status.stage),
     refetchInterval: (query) =>
-      activeTtsReady(query.state.data) ? false : ENGINES_POLL_WHILE_UNREADY_MS,
+      query.state.status === 'error' || !activeTtsReady(query.state.data)
+        ? ENGINES_RECOVERY_POLL_MS
+        : false,
   });
   return {
     data: query.data,

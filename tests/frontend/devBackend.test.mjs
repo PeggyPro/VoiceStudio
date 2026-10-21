@@ -12,7 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, renameSync, rmSync, utimesSync, writeFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -24,6 +24,7 @@ import {
   tailFile,
   uvRunArgs,
   uvicornArgs,
+  watchBackendSources,
 } from '../../scripts/dev-backend.mjs';
 
 test('CPU/CUDA/ROCm restarts skip sync while preserving bind-host and port overrides', () => {
@@ -130,6 +131,74 @@ test('only Python source changes trigger backend reloads', () => {
   assert.equal(isBackendSourceChange(null), false);
 });
 
+function sourceWatcherHarness(t) {
+  const root = mkdtempSync(path.join(tmpdir(), 'ov-source-watch-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(path.join(root, 'api'));
+  writeFileSync(path.join(root, 'main.py'), 'value = 1\n');
+  writeFileSync(path.join(root, 'api', 'router.py'), 'route = 1\n');
+  const changes = [];
+  let notify;
+  const handle = new EventEmitter();
+  const watcher = watchBackendSources((filename) => changes.push(filename), {
+    root,
+    watchSources: (directory, options, callback) => {
+      assert.equal(directory, root);
+      assert.equal(options.recursive, true);
+      notify = callback;
+      return handle;
+    },
+  });
+  assert.equal(watcher, handle, 'supervisor must retain close/error handling');
+  return { root, changes, notify };
+}
+
+test('source watcher ignores metadata notifications, unchanged saves and bytecode', (t) => {
+  const { root, changes, notify } = sourceWatcherHarness(t);
+  const source = path.join(root, 'main.py');
+  const before = statSync(source);
+  utimesSync(source, new Date(), before.mtime);
+  notify('change', 'main.py');
+  writeFileSync(source, 'value = 1\n');
+  notify('change', 'main.py');
+  notify('rename', 'main.py');
+  notify('change', 'api/router.py');
+  notify('change', 'api/__pycache__/router.pyc');
+  notify('change', null);
+  assert.deepEqual(changes, []);
+});
+
+test('source watcher reloads same-length edits even with preserved timestamps, once', (t) => {
+  const { root, changes, notify } = sourceWatcherHarness(t);
+  const source = path.join(root, 'api', 'router.py');
+  const before = statSync(source);
+  writeFileSync(source, 'route = 2\n');
+  utimesSync(source, before.atime, before.mtime);
+  const filename = path.join('api', 'router.py');
+  notify('change', Buffer.from(filename));
+  notify('change', filename);
+  assert.deepEqual(changes, [filename]);
+});
+
+test('source watcher distinguishes new, deleted and atomically replaced sources', (t) => {
+  const { root, changes, notify } = sourceWatcherHarness(t);
+  const filename = path.join('api', 'NEW.PY');
+  const source = path.join(root, filename);
+  writeFileSync(source, 'new = 1\n');
+  notify('rename', filename);
+  rmSync(source);
+  notify('rename', filename);
+  notify('rename', filename);
+  const staged = path.join(root, 'main.py.tmp');
+  writeFileSync(staged, 'value = 1\n');
+  renameSync(staged, path.join(root, 'main.py'));
+  notify('rename', 'main.py');
+  writeFileSync(staged, 'value = 2\n');
+  renameSync(staged, path.join(root, 'main.py'));
+  notify('rename', 'main.py');
+  assert.deepEqual(changes, [filename, filename, 'main.py']);
+});
+
 test('resolveDataDir mirrors backend/core/config.py::get_app_data_dir', () => {
   assert.equal(resolveDataDir({ OMNIVOICE_DATA_DIR: '/x' }, 'linux', '/home/u'), '/x');
   assert.equal(
@@ -217,6 +286,37 @@ test('Python edits reload the direct worker without counting as crashes', () => 
   assert.equal(harness.children.length, 2);
   assert.deepEqual(harness.exits, []);
   assert.doesNotMatch(harness.reports.join('\n'), /BACKEND DIED|restarting in/);
+});
+
+test('a synchronous forced reload exit waits for the process-tree kill result', () => {
+  const harness = supervisorHarness({
+    killBackend: (child) => {
+      child.emit('exit', 1, null);
+      return 'taskkill';
+    },
+  });
+  harness.supervisor.start();
+  harness.watchers[0].onChange('main.py');
+  harness.runNextTimer();
+  assert.equal(harness.children.length, 2);
+  assert.deepEqual(harness.exits, []);
+  assert.doesNotMatch(harness.reports.join('\n'), /BACKEND DIED|restarting in/);
+});
+
+test('a synchronous fallback reload failure still counts as a crash', () => {
+  const harness = supervisorHarness({
+    killBackend: (child) => {
+      child.emit('exit', 1, null);
+      return 'fallback';
+    },
+  });
+  harness.supervisor.start();
+  harness.watchers[0].onChange('main.py');
+  harness.runNextTimer();
+  assert.equal(harness.children.length, 1);
+  assert.match(harness.reports.join('\n'), /BACKEND DIED/);
+  harness.runNextTimer();
+  assert.equal(harness.children.length, 2);
 });
 
 test('a crash racing a requested reload still uses crash recovery', () => {

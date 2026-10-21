@@ -22,7 +22,8 @@
 // ──────────────────────────────────────────────────────────────────────────
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, watch } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, readdirSync, watch } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -94,6 +95,52 @@ export function isBackendSourceChange(filename) {
   return typeof filename === "string" && filename.toLowerCase().endsWith(".py");
 }
 
+export function watchBackendSources(onChange, { root = "backend", watchSources = watch } = {}) {
+  const contents = new Map();
+  const keyFor = (filename) => {
+    const absolute = path.resolve(root, filename);
+    return process.platform === "win32" ? absolute.toLowerCase() : absolute;
+  };
+  const signature = (filename) => {
+    try {
+      return createHash("sha256").update(readFileSync(filename)).digest("hex");
+    } catch (error) {
+      if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
+      throw error;
+    }
+  };
+  const snapshot = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const filename = path.join(directory, entry.name);
+      if (entry.isDirectory()) snapshot(filename);
+      else if (isBackendSourceChange(entry.name)) {
+        contents.set(keyFor(path.relative(root, filename)), signature(filename));
+      }
+    }
+  };
+  snapshot(root);
+
+  return watchSources(root, { recursive: true }, (_event, value) => {
+    const filename = value?.toString();
+    if (!isBackendSourceChange(filename)) return;
+    const key = keyFor(filename);
+    let next;
+    try {
+      next = signature(path.resolve(root, filename));
+    } catch {
+      // A temporarily unreadable source still warrants a reload; don't lose edits.
+      onChange(filename);
+      return;
+    }
+    // Windows/Bun may notify on access or metadata changes while Python imports.
+    // Compare bytes, not timestamps, so those notifications cannot restart it.
+    if ((contents.get(key) ?? null) === next) return;
+    if (next === null) contents.delete(key);
+    else contents.set(key, next);
+    onChange(filename);
+  });
+}
+
 /** Mirror backend/core/config.py::get_app_data_dir() so the banner reads the
  *  same omnivoice.log the backend writes. Pure — testable with fake inputs. */
 export function resolveDataDir(env = process.env, platform = process.platform, home = homedir()) {
@@ -162,8 +209,7 @@ export function uvRunArgs(env = process.env) {
  */
 export function createBackendSupervisor({
   spawnBackend = () => spawn("uv", uvRunArgs(), { stdio: "inherit" }),
-  watchBackend = (onChange) =>
-    watch("backend", { recursive: true }, (_event, filename) => onChange(filename?.toString())),
+  watchBackend = watchBackendSources,
   killBackend = (proc, sig) => killProcessTree(proc, sig),
   schedule = setTimeout,
   cancelSchedule = clearTimeout,
@@ -181,6 +227,8 @@ export function createBackendSupervisor({
   // reports a non-zero exit and no signal. Only then may such an exit be read
   // as "the reload we asked for" instead of "it crashed mid-reload".
   let reloadKillForced = false;
+  let reloadKillPending = false;
+  let afterReloadKill = null;
   let watcher = null;
   let crashTimes = [];
   let requestedExitCode = null;
@@ -225,10 +273,16 @@ export function createBackendSupervisor({
       if (!child || restartTimer !== null) return;
       reloadRequested = true;
       report(`[dev-backend] ${filename} changed; reloading backend…`);
+      reloadKillPending = true;
       try {
         reloadKillForced = killBackend(child, "SIGTERM") === "taskkill";
       } catch {
         reloadRequested = false;
+      } finally {
+        reloadKillPending = false;
+        const finishExit = afterReloadKill;
+        afterReloadKill = null;
+        finishExit?.();
       }
     }, SOURCE_RELOAD_DEBOUNCE_MS);
   }
@@ -274,7 +328,13 @@ export function createBackendSupervisor({
       if (settled) return;
       settled = true;
       if (child === current) child = null;
+      // Bun can deliver this event during spawnSync(taskkill), before its return
+      // tells us whether the forced tree-kill succeeded. Classify it afterwards.
+      if (reloadKillPending) afterReloadKill = () => finishExit(code, signal);
+      else finishExit(code, signal);
+    });
 
+    function finishExit(code, signal) {
       if (interrupted) {
         exit(requestedExitCode ?? (signal ? 1 : (code ?? 0)));
         return;
@@ -323,7 +383,7 @@ export function createBackendSupervisor({
         restartTimer = null;
         start();
       }, CRASH_RESTART_DELAY_MS);
-    });
+    }
   }
 
   return { start, stop };

@@ -422,10 +422,10 @@ export function ModelSettings({
           licenseRequired: engine.license_required,
           licenseAccepted: engine.license_accepted,
         }));
-  if (family !== 'llm' && (family === 'dictation' ? dictation.isError : engines.isError))
-    return (
+  const loadError =
+    family !== 'llm' && (family === 'dictation' ? dictation.isError : engines.isError) ? (
       <SettingsActionError
-        title={t('modelSettings.failed')}
+        title={t('modelSettings.load_failed')}
         detail={describeError(family === 'dictation' ? dictation.error : engines.error)}
         action={
           <Button
@@ -440,7 +440,8 @@ export function ModelSettings({
           </Button>
         }
       />
-    );
+    ) : null;
+  if (loadError && !rows) return loadError;
   const availableRows = rows?.filter((row) => row.available);
   const unavailableRows = rows?.filter((row) => !row.available);
   const renderRow = (row: NonNullable<typeof rows>[number]) => {
@@ -553,6 +554,7 @@ export function ModelSettings({
     );
   return (
     <>
+      {loadError}
       <SettingsSection icon={familyIcons[family]} title={t('engineSidebar.' + family)}>
         {family === 'dictation' && (
           <SettingsRow id="dictation-enabled" title={t('engineSidebar.dictation')} titleHidden>
