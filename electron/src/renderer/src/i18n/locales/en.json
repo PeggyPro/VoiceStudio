@@ -722,6 +722,10 @@
   },
   "modelSettings": {
     "models": "Models",
+    "licenseFilter": "Filter models by licence",
+    "commercialOnly": "Commercial use",
+    "noncommercialOnly": "Non-commercial use",
+    "allLicenses": "All models",
     "available": "Available",
     "unavailable": "Unavailable",
     "select": "Select",

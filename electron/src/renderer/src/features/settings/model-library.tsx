@@ -7,6 +7,7 @@ import {
   CheckIcon,
   ChevronDownIcon,
   DownloadIcon,
+  FilterIcon,
   HardDriveIcon,
   MemoryStickIcon,
   LoaderCircleIcon,
@@ -42,6 +43,9 @@ import { SettingsSection, SettingsRow } from './settings-layout';
 import { familyIcons, type ModelFamily } from './model-family';
 import { useModelCatalogue, type CatalogueModel } from './model-catalogue-query';
 import { ModelLicense } from './model-license';
+import { modelLicenseCategory } from './model-license-contract';
+// @ts-expect-error Shared JSX component has no declaration file.
+import SearchableSelect from '@shared/components/SearchableSelect';
 import { resolvePerformanceModelPack } from './performance-model-packs';
 import { modelDiskShortfall } from './model-disk-space';
 import { fmtBytes } from '@shared/components/settings/models/format';
@@ -89,6 +93,8 @@ interface GatedAccessStatus {
     access: 'granted' | 'required' | 'token_missing' | 'unavailable';
   }[];
 }
+
+type ModelLicenseFilter = 'commercial' | 'noncommercial' | 'all';
 
 type DestructiveAction = {
   kind: 'delete' | 'reinstall';
@@ -569,6 +575,7 @@ export function ModelLibrary({
   const [checkingAccess, setCheckingAccess] = useState<string | null>(null);
   const [accessStatus, setAccessStatus] = useState<Record<string, GatedAccessStatus>>({});
   const [query, setQuery] = useState('');
+  const [licenseFilter, setLicenseFilter] = useState<ModelLicenseFilter>('commercial');
   const [confirmation, setConfirmation] = useState<DestructiveAction | null>(null);
   const jobs = useModelInstallJobs<
     ModelInstallJob & {
@@ -600,13 +607,20 @@ export function ModelLibrary({
     return model.role.toLowerCase() === family && !model.dictation_id;
   });
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const visibleModels = models?.filter(
-    (model) =>
+  const visibleModels = models?.filter((model) => {
+    if (
+      !setup &&
+      licenseFilter !== 'all' &&
+      modelLicenseCategory(model.license_info?.license_category) !== licenseFilter
+    )
+      return false;
+    return (
       !normalizedQuery ||
       [model.label, model.repo_id, model.note, model.role].some((value) =>
         value?.toLocaleLowerCase().includes(normalizedQuery),
-      ),
-  );
+      )
+    );
+  });
   const primary = setup
     ? visibleModels
         ?.filter((model) => model.required || model.installed || model.curated)
@@ -1270,6 +1284,33 @@ export function ModelLibrary({
         title={title ?? t('modelSettings.models')}
         icon={icon}
         contentVariant="cards"
+        headerActions={
+          !setup && (
+            <div className="relative max-w-full">
+              <FilterIcon
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-2 z-10 size-3.5 -translate-y-1/2 text-muted-foreground"
+              />
+              <SearchableSelect
+                value={licenseFilter}
+                onChange={(value: ModelLicenseFilter) => setLicenseFilter(value)}
+                options={[
+                  { value: 'commercial', label: t('modelSettings.commercialOnly') },
+                  { value: 'noncommercial', label: t('modelSettings.noncommercialOnly') },
+                  { value: 'all', label: t('modelSettings.allLicenses') },
+                ]}
+                ariaLabel={t('modelSettings.licenseFilter')}
+                buttonClassName={buttonVariants({
+                  variant: 'outline',
+                  size: 'sm',
+                  className: 'pl-7',
+                })}
+                menuClassName="[--color-bg:var(--popover)] [--chrome-fg:var(--popover-foreground)] [--chrome-fg-muted:var(--muted-foreground)] [--chrome-hover-bg:var(--muted)] [--chrome-accent:var(--accent-foreground)] [--chrome-accent-bg:var(--accent)] [--text-primary:var(--foreground)] [--text-secondary:var(--muted-foreground)]"
+                menuPortal
+              />
+            </div>
+          )
+        }
       >
         {!setup && (
           <div className="glass-panel col-span-full flex items-center gap-2 rounded-xl border border-border/60 bg-card/40 px-4 py-3 shadow-xs/5">

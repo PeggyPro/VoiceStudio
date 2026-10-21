@@ -375,6 +375,10 @@
   },
   "modelSettings": {
     "models": "Modellen",
+    "licenseFilter": "Modellen filteren op licentie",
+    "commercialOnly": "Commercieel gebruik",
+    "noncommercialOnly": "Niet-commercieel gebruik",
+    "allLicenses": "Alle modellen",
     "available": "Beschikbaar",
     "unavailable": "niet beschikbaar",
     "select": "Selecteer",

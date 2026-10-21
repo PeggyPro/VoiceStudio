@@ -12,6 +12,10 @@ metadata and the backend fallback mirror it.
 
 - Preview iOS and Android companion apps for your own VoiceStudio
 
+### Changed
+
+- Settings model lists default to commercial-use models, with a licence filter beside the Models heading for non-commercial use or all models.
+
 ### Added
 
 - Preview iOS and Android companion apps: drive your own VoiceStudio from your phone (speak, voices and cloning, dubbing, dictation) after pairing by QR code; build from source for now ([guide](docs/mobile.md)) (#2965)

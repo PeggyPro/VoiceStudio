@@ -377,6 +377,10 @@
   },
   "modelSettings": {
     "models": "Modèles",
+    "licenseFilter": "Filtrer les modèles par licence",
+    "commercialOnly": "Usage commercial",
+    "noncommercialOnly": "Usage non commercial",
+    "allLicenses": "Tous les modèles",
     "available": "Disponible",
     "unavailable": "indisponible",
     "select": "Sélectionnez",

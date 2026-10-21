@@ -35,18 +35,23 @@ export function SettingsSection({
   children,
   icon: Icon,
   contentVariant = 'rows',
+  headerActions,
 }: {
   title: string;
   children: ReactNode;
   icon?: LucideIcon;
   contentVariant?: 'rows' | 'cards';
+  headerActions?: ReactNode;
 }) {
   return (
     <section className="min-w-0 space-y-2.5">
-      <h2 className="flex min-h-7 items-center gap-2 px-1 text-sm font-normal tracking-[-0.005em] text-foreground/80">
-        {Icon && <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />}
-        {title}
-      </h2>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 className="flex min-h-7 items-center gap-2 px-1 text-sm font-normal tracking-[-0.005em] text-foreground/80">
+          {Icon && <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />}
+          {title}
+        </h2>
+        {headerActions}
+      </div>
       <div
         className={cn(
           contentVariant === 'rows'

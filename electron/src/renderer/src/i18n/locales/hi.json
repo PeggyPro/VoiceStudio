@@ -375,6 +375,10 @@
   },
   "modelSettings": {
     "models": "मॉडल",
+    "licenseFilter": "लाइसेंस के अनुसार मॉडल फ़िल्टर करें",
+    "commercialOnly": "व्यावसायिक उपयोग",
+    "noncommercialOnly": "गैर-व्यावसायिक उपयोग",
+    "allLicenses": "सभी मॉडल",
     "available": "उपलब्ध",
     "unavailable": "अनुपलब्ध",
     "select": "चयन करें",

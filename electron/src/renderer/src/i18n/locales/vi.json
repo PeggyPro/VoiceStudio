@@ -375,6 +375,10 @@
   },
   "modelSettings": {
     "models": "Mô hình",
+    "licenseFilter": "Lọc mô hình theo giấy phép",
+    "commercialOnly": "Sử dụng thương mại",
+    "noncommercialOnly": "Sử dụng phi thương mại",
+    "allLicenses": "Tất cả mô hình",
     "available": "Có sẵn",
     "unavailable": "không có sẵn",
     "select": "chọn",

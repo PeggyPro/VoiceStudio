@@ -379,6 +379,10 @@
   },
   "modelSettings": {
     "models": "Модели",
+    "licenseFilter": "Фильтровать модели по лицензии",
+    "commercialOnly": "Коммерческое использование",
+    "noncommercialOnly": "Некоммерческое использование",
+    "allLicenses": "Все модели",
     "available": "Доступный",
     "unavailable": "недоступен",
     "select": "Выбирать",

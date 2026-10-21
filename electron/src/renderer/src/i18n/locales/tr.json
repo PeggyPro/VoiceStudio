@@ -375,6 +375,10 @@
   },
   "modelSettings": {
     "models": "Modeller",
+    "licenseFilter": "Modelleri lisansa göre filtrele",
+    "commercialOnly": "Ticari kullanım",
+    "noncommercialOnly": "Ticari olmayan kullanım",
+    "allLicenses": "Tüm modeller",
     "available": "Mevcut",
     "unavailable": "müsait değil",
     "select": "Seç",

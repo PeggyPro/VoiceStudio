@@ -375,6 +375,10 @@
   },
   "modelSettings": {
     "models": "Model",
+    "licenseFilter": "Filter model berdasarkan lisensi",
+    "commercialOnly": "Penggunaan komersial",
+    "noncommercialOnly": "Penggunaan nonkomersial",
+    "allLicenses": "Semua model",
     "available": "Tersedia",
     "unavailable": "tidak tersedia",
     "select": "Pilih",

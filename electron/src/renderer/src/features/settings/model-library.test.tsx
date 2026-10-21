@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 const mock = vi.hoisted(() => ({
   api: vi.fn(),
   toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
@@ -21,6 +21,53 @@ vi.mock('react-i18next', () => ({
 import { ModelLibrary, PerformanceModelPacks, SystemRecommendations } from './model-library';
 import { modelFamilies } from './model-family';
 import { performancePackRepos } from './performance-model-packs';
+import type { CatalogueModel } from './model-catalogue-query';
+import type { ModelLicenseInfo } from './model-license-contract';
+
+const commercialLicense: ModelLicenseInfo = {
+  registry_version: 'test',
+  registry_digest: 'test',
+  license: 'MIT',
+  credit: 'Test author',
+  review_status: 'unreviewed',
+  commercial_inference: 'unknown',
+  commercial_outputs: 'unknown',
+  component_closure: 'unknown',
+  readiness: 'blocked',
+  license_category: 'commercial',
+  blockers: [],
+  enforcement: 'disclosure_only',
+};
+
+function licenceModel(
+  id: string,
+  category?: string,
+  overrides: Partial<CatalogueModel> = {},
+): CatalogueModel {
+  return {
+    repo_id: `test/${id.toLowerCase().replaceAll(' ', '-')}`,
+    label: id,
+    role: 'TTS',
+    size_gb: 1,
+    installed: false,
+    supported: true,
+    license_info: category ? { ...commercialLicense, license_category: category } : undefined,
+    ...overrides,
+  };
+}
+
+const scrollIntoView = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView');
+beforeAll(() => {
+  Object.defineProperty(Element.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  });
+});
+afterAll(() => {
+  if (scrollIntoView) Object.defineProperty(Element.prototype, 'scrollIntoView', scrollIntoView);
+  else delete (Element.prototype as Partial<Element>).scrollIntoView;
+});
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -74,6 +121,9 @@ it('prioritizes required and curated models across families, with optional downl
   ).toBeTruthy();
   expect(screen.getByText('Optional')).not.toBeVisible();
   expect(screen.queryByText('Unsupported')).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'modelSettings.licenseFilter' }),
+  ).not.toBeInTheDocument();
   expect(mock.api.mock.calls.every(([path]) => path !== '/models/install')).toBe(true);
   fireEvent.click(
     within(screen.getByRole('group', { name: 'Required' })).getByRole('button', {
@@ -122,7 +172,13 @@ it('names each model in the compact setup pack, even two of the same family', as
     }
     if (path === '/models/install/status') return Promise.resolve({ jobs: [] });
     if (path === '/setup/recommendations') {
-      return Promise.resolve({ device: { label: 'Linux x64' }, models: [], download_gb_remaining: 0, total_gb: 0, all_installed: false });
+      return Promise.resolve({
+        device: { label: 'Linux x64' },
+        models: [],
+        download_gb_remaining: 0,
+        total_gb: 0,
+        all_installed: false,
+      });
     }
     return Promise.resolve({});
   });
@@ -257,6 +313,7 @@ it('unloads a resident model before deleting its slash-separated repository', as
             size_gb: 2,
             installed: true,
             supported: true,
+            license_info: commercialLicense,
           },
         ],
       });
@@ -323,6 +380,7 @@ it('confirms reinstall, removes the old copy, then starts a fresh install', asyn
             size_gb: 2,
             installed: true,
             supported: true,
+            license_info: commercialLicense,
           },
         ],
       });
@@ -369,6 +427,7 @@ it('surfaces the backend routing verdict when selecting an ASR model from the ca
             size_gb: 2.9,
             installed: true,
             supported: true,
+            license_info: commercialLicense,
           },
         ],
       });
@@ -432,61 +491,125 @@ it.each([
     current: 'faster-whisper-isolated',
     expected: 'faster-whisper-isolated',
   },
-])('selects installed $repo via $expected when $current is active', async ({ repo, engines, current, expected }) => {
-  let selected = false;
-  mock.api.mockImplementation((path: string) => {
-    if (path === '/models') {
-      return Promise.resolve({
-        models: [{
-          repo_id: repo,
-          engines,
-          label: 'Installed Whisper',
-          role: 'ASR',
-          size_gb: 3.1,
-          installed: true,
-          supported: true,
-        }],
-      });
-    }
-    if (path === '/models/install/status') return Promise.resolve({ jobs: [] });
-    if (path === '/model/loaded') return Promise.resolve({ models: [], count: 0 });
-    if (path === '/engines') {
-      return Promise.resolve({
-        asr: {
-          active: selected ? expected : current,
-          active_model: selected ? repo : 'another/model',
-          backends: [{ id: expected, available: true }],
-        },
-      });
-    }
-    if (path === '/engines/select') {
-      selected = true;
-      return Promise.resolve({ active: expected });
-    }
-    return Promise.resolve({});
-  });
-  const client = new QueryClient();
-  const invalidate = vi.spyOn(client, 'invalidateQueries');
-  render(
-    <QueryClientProvider client={client}>
-      <ModelLibrary family="asr" />
-    </QueryClientProvider>,
-  );
+])(
+  'selects installed $repo via $expected when $current is active',
+  async ({ repo, engines, current, expected }) => {
+    let selected = false;
+    mock.api.mockImplementation((path: string) => {
+      if (path === '/models') {
+        return Promise.resolve({
+          models: [
+            {
+              repo_id: repo,
+              engines,
+              label: 'Installed Whisper',
+              role: 'ASR',
+              size_gb: 3.1,
+              installed: true,
+              supported: true,
+              license_info: commercialLicense,
+            },
+          ],
+        });
+      }
+      if (path === '/models/install/status') return Promise.resolve({ jobs: [] });
+      if (path === '/model/loaded') return Promise.resolve({ models: [], count: 0 });
+      if (path === '/engines') {
+        return Promise.resolve({
+          asr: {
+            active: selected ? expected : current,
+            active_model: selected ? repo : 'another/model',
+            backends: [{ id: expected, available: true }],
+          },
+        });
+      }
+      if (path === '/engines/select') {
+        selected = true;
+        return Promise.resolve({ active: expected });
+      }
+      return Promise.resolve({});
+    });
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    render(
+      <QueryClientProvider client={client}>
+        <ModelLibrary family="asr" />
+      </QueryClientProvider>,
+    );
 
-  fireEvent.click(await screen.findByRole('button', { name: 'modelSettings.select' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'modelSettings.select' }));
 
-  await waitFor(() => expect(mock.api).toHaveBeenCalledWith(
-    '/engines/select',
-    expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({ family: 'asr', backend_id: expected, model_id: repo }),
-    }),
-  ));
-  expect(await screen.findByRole('button', { name: 'modelSettings.selected' })).toBeDisabled();
-  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['engines'] });
-  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['performance-profile'] });
-  expect(mock.api.mock.calls.every(([path]) => path !== '/models/install')).toBe(true);
-});
+    await waitFor(() =>
+      expect(mock.api).toHaveBeenCalledWith(
+        '/engines/select',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ family: 'asr', backend_id: expected, model_id: repo }),
+        }),
+      ),
+    );
+    expect(await screen.findByRole('button', { name: 'modelSettings.selected' })).toBeDisabled();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['engines'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['performance-profile'] });
+    expect(mock.api.mock.calls.every(([path]) => path !== '/models/install')).toBe(true);
+  },
+);
+
+it.each([
+  { active: 'cosyvoice', activeModel: null, selected: 'CosyVoice 3' },
+  { active: 'kittentts', activeModel: null, selected: 'KittenTTS' },
+  { active: 'omnivoice-subprocess', activeModel: null, selected: 'OmniVoice' },
+  { active: 'cosyvoice', activeModel: 'custom/local-model', selected: null },
+  { active: 'mlx-audio', activeModel: 'test/kokoro', selected: 'Kokoro' },
+  { active: 'mlx-audio', activeModel: null, selected: null },
+  { active: null, activeModel: null, selected: null },
+])(
+  'shows the selected TTS card for $active / $activeModel without confusing installed or loaded models',
+  async ({ active, activeModel, selected }) => {
+    const models = [
+      licenceModel('CosyVoice 3', 'commercial', { engines: ['cosyvoice'], installed: true }),
+      licenceModel('KittenTTS', 'commercial', { engines: ['kittentts'], installed: true }),
+      licenceModel('OmniVoice', 'commercial', {
+        engines: ['omnivoice', 'omnivoice-subprocess'],
+        installed: true,
+      }),
+      licenceModel('Kokoro', 'commercial', { engines: ['mlx-audio'], installed: true }),
+      // The other variant is hidden by the default filter. It must still prevent
+      // treating a multi-model engine as a single-model engine.
+      licenceModel('CSM', 'noncommercial', { engines: ['mlx-audio'], installed: true }),
+    ];
+    const engines = { tts: { active, active_model: activeModel, backends: [] } };
+    mock.api.mockImplementation((path: string) => {
+      if (path === '/models') return Promise.resolve({ models });
+      if (path === '/engines') return Promise.resolve(engines);
+      if (path === '/models/install/status') return Promise.resolve({ jobs: [] });
+      if (path === '/model/loaded')
+        return Promise.resolve({
+          models: [{ id: 'tts', checkpoint: 'test/kittentts', unloadable: true }],
+          count: 1,
+        });
+      return Promise.resolve({});
+    });
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <ModelLibrary family="tts" />
+      </QueryClientProvider>,
+    );
+    await screen.findByText('modelMaintenance.inMemory');
+    await waitFor(() => expect(client.getQueryData(['engines'])).toEqual(engines));
+
+    if (selected) {
+      const card = screen.getByRole('group', { name: selected });
+      expect(within(card).getByText('modelSettings.selected')).toBeInTheDocument();
+      expect(card.closest('[data-slot="settings-row"]')).toHaveAttribute('data-active', 'true');
+      expect(screen.getAllByText('modelSettings.selected')).toHaveLength(1);
+    } else {
+      expect(screen.queryByText('modelSettings.selected')).not.toBeInTheDocument();
+    }
+    expect(mock.api.mock.calls.every(([path]) => path !== '/engines/select')).toBe(true);
+  },
+);
 
 it('surfaces an interrupted cache as repairable and removable', async () => {
   mock.api.mockImplementation((path: string) => {
@@ -502,6 +625,7 @@ it('surfaces an interrupted cache as repairable and removable', async () => {
             incomplete: true,
             installed: false,
             supported: true,
+            license_info: commercialLicense,
           },
         ],
       });
@@ -536,6 +660,7 @@ it('keeps speaker diarisation models discoverable after setup', async () => {
             size_gb: 3.1,
             installed: false,
             supported: true,
+            license_info: commercialLicense,
           },
           {
             repo_id: 'owner/tts',
@@ -544,6 +669,7 @@ it('keeps speaker diarisation models discoverable after setup', async () => {
             size_gb: 1,
             installed: false,
             supported: true,
+            license_info: commercialLicense,
           },
         ],
       });
@@ -564,8 +690,97 @@ it('keeps speaker diarisation models discoverable after setup', async () => {
   expect(screen.queryByText('Unrelated TTS')).not.toBeInTheDocument();
 });
 
+it.each(modelFamilies)('defaults the %s licence filter to commercial models', async (family) => {
+  const overrides = {
+    role: family === 'dictation' ? 'ASR' : family.toUpperCase(),
+    ...(family === 'dictation' ? { dictation_id: 'test-dictation' } : {}),
+  };
+  const models = [
+    licenceModel('Commercial model', 'commercial', overrides),
+    licenceModel('Noncommercial model', 'noncommercial', overrides),
+    licenceModel('Conditional model', 'conditions', overrides),
+    licenceModel('Unknown model', 'unknown', overrides),
+    licenceModel('Future model', 'future-category', overrides),
+    licenceModel('Missing licence model', undefined, overrides),
+  ];
+  mock.api.mockImplementation((path: string) => {
+    if (path === '/models') return Promise.resolve({ models });
+    if (path === '/models/install/status') return Promise.resolve({ jobs: [] });
+    if (path === '/model/loaded') return Promise.resolve({ models: [], count: 0 });
+    return Promise.resolve({});
+  });
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ModelLibrary family={family} />
+    </QueryClientProvider>,
+  );
+
+  await screen.findByText('Commercial model');
+  const filter = screen.getByRole('button', { name: 'modelSettings.licenseFilter' });
+  expect(filter).toHaveTextContent('modelSettings.commercialOnly');
+  for (const model of models.slice(1))
+    expect(screen.queryByText(model.label)).not.toBeInTheDocument();
+
+  fireEvent.click(filter);
+  // The popup escapes the scrolling settings container.
+  expect(screen.getByRole('listbox').closest('section')).toBeNull();
+  fireEvent.mouseDown(screen.getByRole('option', { name: 'modelSettings.allLicenses' }));
+  for (const model of models) expect(screen.getByText(model.label)).toBeInTheDocument();
+});
+
+it('combines the licence filter with search, unavailable counts and keyboard selection', async () => {
+  const models = [
+    licenceModel('Commercial narration', 'commercial'),
+    licenceModel('Research narration', 'noncommercial', { installed: true }),
+    licenceModel('Research transcription', 'noncommercial', { role: 'ASR' }),
+    licenceModel('Commercial unavailable', 'commercial', { supported: false }),
+    licenceModel('Research unavailable', 'noncommercial', { supported: false, note: 'Narration' }),
+    licenceModel('Research unrelated', 'noncommercial', { supported: false }),
+    licenceModel('Unknown unavailable', undefined, { supported: false }),
+  ];
+  mock.api.mockImplementation((path: string) => {
+    if (path === '/models') return Promise.resolve({ models });
+    if (path === '/models/install/status') return Promise.resolve({ jobs: [] });
+    if (path === '/model/loaded') return Promise.resolve({ models: [], count: 0 });
+    return Promise.resolve({});
+  });
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ModelLibrary family="tts" />
+    </QueryClientProvider>,
+  );
+
+  await screen.findByText('Commercial narration');
+  expect(screen.getByText('modelSettings.unavailable (1)')).toBeInTheDocument();
+  const search = screen.getByRole('searchbox', { name: 'preferences.search' });
+  fireEvent.change(search, { target: { value: 'narration' } });
+  const filter = screen.getByRole('button', { name: 'modelSettings.licenseFilter' });
+  fireEvent.click(filter);
+  const optionSearch = within(screen.getByRole('listbox')).getByRole('textbox', {
+    name: 'common.search',
+  });
+  fireEvent.keyDown(optionSearch, { key: 'ArrowDown' });
+  fireEvent.keyDown(optionSearch, { key: 'Enter' });
+  expect(filter).toHaveTextContent('modelSettings.noncommercialOnly');
+  expect(search).toHaveValue('narration');
+  expect(screen.getByText('Research narration')).toBeInTheDocument();
+  expect(screen.queryByText('Commercial narration')).not.toBeInTheDocument();
+  expect(screen.queryByText('Research transcription')).not.toBeInTheDocument();
+  expect(screen.getByText('Research unavailable')).not.toBeVisible();
+  expect(screen.queryByText('Research unrelated')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText('modelSettings.unavailable (1)'));
+  expect(screen.getByText('Research unavailable')).toBeVisible();
+
+  fireEvent.change(search, { target: { value: 'no such model' } });
+  expect(screen.getByRole('status')).toHaveTextContent('preferences.no_matches');
+  expect(screen.queryByText(/modelSettings.unavailable/)).not.toBeInTheDocument();
+  fireEvent.keyDown(search, { key: 'Escape' });
+  expect(screen.getByText('Research narration')).toBeInTheDocument();
+  expect(screen.getByText('modelSettings.unavailable (2)')).toBeInTheDocument();
+});
+
 it('searches model metadata and keeps incompatible choices folded', async () => {
-  const base = { role: 'TTS', size_gb: 1, installed: false };
+  const base = { role: 'TTS', size_gb: 1, installed: false, license_info: commercialLicense };
   mock.api.mockImplementation((path: string) => {
     if (path === '/models') {
       return Promise.resolve({
@@ -622,6 +837,7 @@ it('shows device recommendations and live aggregate download telemetry', async (
             installed: false,
             supported: true,
             curated: true,
+            license_info: commercialLicense,
           },
         ],
       });
@@ -842,6 +1058,7 @@ it('sends a gated install that failed on a chosen mirror to the mirror settings'
             size_gb: 1,
             installed: false,
             supported: true,
+            license_info: commercialLicense,
             gated: true,
           },
         ],

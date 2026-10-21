@@ -383,6 +383,10 @@
   },
   "modelSettings": {
     "models": "النماذج",
+    "licenseFilter": "تصفية النماذج حسب الترخيص",
+    "commercialOnly": "الاستخدام التجاري",
+    "noncommercialOnly": "الاستخدام غير التجاري",
+    "allLicenses": "جميع النماذج",
     "available": "متاح",
     "unavailable": "غير متاح",
     "select": "اختر",

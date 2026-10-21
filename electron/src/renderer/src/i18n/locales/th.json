@@ -375,6 +375,10 @@
   },
   "modelSettings": {
     "models": "โมเดล",
+    "licenseFilter": "กรองโมเดลตามสัญญาอนุญาต",
+    "commercialOnly": "การใช้งานเชิงพาณิชย์",
+    "noncommercialOnly": "การใช้งานที่ไม่ใช่เชิงพาณิชย์",
+    "allLicenses": "โมเดลทั้งหมด",
     "available": "มีจำหน่าย",
     "unavailable": "ไม่พร้อมใช้งาน",
     "select": "เลือก",

@@ -375,6 +375,10 @@
   },
   "modelSettings": {
     "models": "Modeller",
+    "licenseFilter": "Filtrera modeller efter licens",
+    "commercialOnly": "Kommersiell användning",
+    "noncommercialOnly": "Icke-kommersiell användning",
+    "allLicenses": "Alla modeller",
     "available": "Tillgänglig",
     "unavailable": "otillgänglig",
     "select": "Välj",

@@ -375,6 +375,10 @@
   },
   "modelSettings": {
     "models": "模型",
+    "licenseFilter": "依授權條款篩選模型",
+    "commercialOnly": "可商用",
+    "noncommercialOnly": "不可商用",
+    "allLicenses": "全部模型",
     "available": "可用",
     "unavailable": "不可用",
     "select": "選擇",

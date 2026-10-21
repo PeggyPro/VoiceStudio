@@ -375,6 +375,10 @@
   },
   "modelSettings": {
     "models": "モデル",
+    "licenseFilter": "ライセンスでモデルを絞り込む",
+    "commercialOnly": "商用利用可",
+    "noncommercialOnly": "商用利用不可",
+    "allLicenses": "すべてのモデル",
     "available": "利用可能",
     "unavailable": "利用不可",
     "select": "選択",

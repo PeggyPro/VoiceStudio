@@ -375,6 +375,10 @@
   },
   "modelSettings": {
     "models": "모델",
+    "licenseFilter": "라이선스로 모델 필터링",
+    "commercialOnly": "상업적 사용",
+    "noncommercialOnly": "비상업적 사용",
+    "allLicenses": "모든 모델",
     "available": "사용 가능",
     "unavailable": "이용할 수 없음",
     "select": "선택",

@@ -7,6 +7,17 @@ on slow or restricted networks.
 Unknown or user-managed cache layouts are allowed through so existing manual
 engine installs remain compatible.
 
+## Filter by model licence
+
+In **Settings → Models**, the filter next to the **Models** heading defaults to
+**Commercial use**. Choose **Non-commercial use** to see models in that licence
+category, or **All models** to include conditional and unidentified licences.
+The filter works together with search and applies to both available and
+unavailable models in every model family. First-run setup still shows its full
+set of recommended models.
+
+Open a model's **Licence** details to check its terms and review status.
+
 ## Download backend: legacy LFS by default (accurate progress)
 
 VoiceStudio ships `hf_xet` (Hugging Face's chunked, parallel, dedup transfer

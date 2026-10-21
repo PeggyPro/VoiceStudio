@@ -379,6 +379,10 @@
   },
   "modelSettings": {
     "models": "Моделі",
+    "licenseFilter": "Фільтрувати моделі за ліцензією",
+    "commercialOnly": "Комерційне використання",
+    "noncommercialOnly": "Некомерційне використання",
+    "allLicenses": "Усі моделі",
     "available": "в наявності",
     "unavailable": "недоступний",
     "select": "Виберіть",
