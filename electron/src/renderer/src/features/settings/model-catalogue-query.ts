@@ -8,6 +8,7 @@ export interface CatalogueModel {
   repo_id: string;
   label: string;
   role: string;
+  engines?: string[];
   families?: string[];
   size_gb: number;
   installed: boolean;

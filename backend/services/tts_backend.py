@@ -923,10 +923,7 @@ def _capture_recognizer_label(ab) -> str:
     ok, _reason = ab.FasterWhisperBackend.is_available()
     if ok:
         return "faster-whisper:" + ab.faster_whisper_model_id()
-    model = os.environ.get(
-        "OMNIVOICE_PYTORCH_ASR_MODEL", "openai/whisper-large-v3-turbo",
-    )
-    return "pytorch-whisper:" + model
+    return "pytorch-whisper:" + ab.pytorch_whisper_model_id()
 
 
 def _fallback_recognizer_labels(ab, selected: list) -> Optional[list]:
@@ -4252,6 +4249,30 @@ def _retire_engine(instance) -> None:
                 retired.append(instance)
             return
         instance.unload()
+
+def invalidate_omnivoice_asr() -> None:
+    """Respawn native TTS children with the new ASR pick after ongoing jobs finish."""
+    global _active_instance, _active_instance_id
+    from engines.omnivoice_subprocess import OmniVoiceSubprocessBackend
+
+    stale = []
+    with _ENGINE_CACHE_LOCK:
+        if isinstance(_active_instance, OmniVoiceSubprocessBackend):
+            stale.append(_active_instance)
+            _active_instance = None
+            _active_instance_id = None
+        for cls, instance in list(_ENGINE_INSTANCES.items()):
+            if isinstance(instance, OmniVoiceSubprocessBackend):
+                _ENGINE_INSTANCES.pop(cls)
+                _ENGINE_LAST_USED.pop(cls, None)
+                if not any(instance is old for old in stale):
+                    stale.append(instance)
+    for instance in stale:
+        try:
+            _retire_engine(instance)
+        except Exception:
+            logger.warning("Could not retire OmniVoice after ASR model switch", exc_info=True)
+
 
 def _idle_seconds_from_env(name: str, default: float, *, floor: float) -> float:
     """Read a tunable idle duration, ignoring anything unusable.

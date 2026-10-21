@@ -59,8 +59,10 @@ function unixListeners(ports) {
   return [...pids];
 }
 
-function windowsListeners(ports) {
-  const result = spawnSync("netstat", ["-ano", "-p", "tcp"], { encoding: "utf8" });
+export function windowsListeners(ports) {
+  // On Windows, `-p tcp` excludes IPv6 (including Vite's localhost listener).
+  // List both address families; parseWindowsListeners ignores UDP/non-listeners.
+  const result = spawnSync("netstat", ["-ano"], { encoding: "utf8" });
   if (result.error) throw result.error;
   return parseWindowsListeners(result.stdout, ports).filter(validPid);
 }

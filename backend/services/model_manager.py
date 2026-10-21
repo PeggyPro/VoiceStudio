@@ -2795,7 +2795,9 @@ def _load_model_sync():
             # corrupt, it must never be mistaken for the TTS checkpoint and
             # trigger a second multi-GB TTS load/re-download (CodeRabbit).
             try:
-                _model.load_asr_model()
+                from services.asr_backend import _local_model_source, pytorch_whisper_model_id
+
+                _model.load_asr_model(model_name=_local_model_source(pytorch_whisper_model_id()))
             except Exception as asr_exc:
                 if not _is_corrupt_model_file_error(asr_exc):
                     raise

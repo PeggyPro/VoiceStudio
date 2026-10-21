@@ -68,8 +68,8 @@ def test_load_model_can_preload_pytorch_whisper_when_requested(model_manager, mo
     class DummyModel:
         llm = object()
 
-        def load_asr_model(self):
-            asr_loads.append(True)
+        def load_asr_model(self, model_name=None):
+            asr_loads.append(model_name)
 
     class DummyOmniVoice:
         @staticmethod
@@ -77,7 +77,13 @@ def test_load_model_can_preload_pytorch_whisper_when_requested(model_manager, mo
             calls.append((args, kwargs))
             return DummyModel()
 
+    from api.routers.setup import models
+    from core import prefs
+
     monkeypatch.setenv("OMNIVOICE_PRELOAD_TTS_ASR", "1")
+    monkeypatch.delenv("OMNIVOICE_PYTORCH_ASR_MODEL", raising=False)
+    prefs.set_("env.OMNIVOICE_PYTORCH_ASR_MODEL", "openai/whisper-large-v3")
+    monkeypatch.setattr(models, "installed_snapshot_path", lambda repo: "/local/whisper" if repo == "openai/whisper-large-v3" else None)
     monkeypatch.setattr(model_manager, "_lazy_torch", lambda: SimpleNamespace(float16="float16", float32="float32"))
     monkeypatch.setattr(model_manager, "_lazy_omnivoice", lambda: DummyOmniVoice)
     monkeypatch.setattr(model_manager, "get_best_device", lambda: "mps")
@@ -85,7 +91,7 @@ def test_load_model_can_preload_pytorch_whisper_when_requested(model_manager, mo
     model_manager._load_model_sync()
 
     assert calls[0][1]["load_asr"] is False
-    assert asr_loads == [True]
+    assert asr_loads == ["/local/whisper"]
 
 
 def test_resolve_checkpoint_honors_test_sentinel(model_manager, monkeypatch):

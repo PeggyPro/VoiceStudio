@@ -68,6 +68,15 @@ export const CRASH_RESTART_LIMIT = 3;
 export const CRASH_RESTART_WINDOW_MS = 60_000;
 export const SOURCE_RELOAD_DEBOUNCE_MS = 250;
 
+function isProcessRunning(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code !== "ESRCH";
+  }
+}
+
 /**
  * Stop a spawned backend and everything it started.
  *
@@ -78,14 +87,24 @@ export const SOURCE_RELOAD_DEBOUNCE_MS = 250;
  * crash, and three of those tore the whole dev stack down. `taskkill /T` walks
  * the tree; POSIX keeps plain signal delivery.
  */
-export function killProcessTree(child, sig, { platform = process.platform, run = spawnSync } = {}) {
+export function killProcessTree(child, sig, {
+  platform = process.platform,
+  run = spawnSync,
+  isRunning = isProcessRunning,
+} = {}) {
   if (platform !== "win32") {
     child.kill(sig);
     return "signal";
   }
+  const wasRunning = isRunning(child.pid);
   const result = run("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
-  if (!result || result.error || result.status !== 0) {
-    child.kill(sig); // taskkill unavailable or the process already exited
+  // taskkill can return 255 after killing uv and Python because an intermediate
+  // uvicorn.exe launcher exited first. Its aggregate status isn't the root's
+  // outcome. Check liveness around the command without parsing localized output.
+  const stoppedByTreeKill = result && !result.error && Number.isInteger(result.status) &&
+    (result.status === 0 || (wasRunning && !isRunning(child.pid)));
+  if (!stoppedByTreeKill) {
+    child.kill(sig); // taskkill unavailable, failed, or the root had already exited
     return "fallback";
   }
   return "taskkill";

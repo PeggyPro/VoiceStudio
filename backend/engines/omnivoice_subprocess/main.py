@@ -240,10 +240,15 @@ def _load_model(stdout):
     )
     heartbeat.start()
     try:
-        _model = OmniVoice.from_pretrained(
+        loaded = OmniVoice.from_pretrained(
             checkpoint, device_map=device,
-            dtype=getattr(torch, tts_dtype_name(device)), load_asr=preload_asr,
+            dtype=getattr(torch, tts_dtype_name(device)), load_asr=False,
         )
+        if preload_asr:
+            from services.asr_backend import _local_model_source, pytorch_whisper_model_id
+
+            loaded.load_asr_model(model_name=_local_model_source(pytorch_whisper_model_id()))
+        _model = loaded
     finally:
         stop_heartbeat.set()
         heartbeat.join()

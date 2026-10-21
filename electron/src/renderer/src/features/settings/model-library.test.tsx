@@ -407,6 +407,87 @@ it('surfaces the backend routing verdict when selecting an ASR model from the ca
   expect(mock.toast.success).not.toHaveBeenCalled();
 });
 
+it.each([
+  {
+    repo: 'openai/whisper-large-v3',
+    engines: ['pytorch-whisper'],
+    current: 'faster-whisper',
+    expected: 'pytorch-whisper',
+  },
+  {
+    repo: 'openai/whisper-large-v3',
+    engines: ['pytorch-whisper'],
+    current: 'faster-whisper-isolated',
+    expected: 'pytorch-whisper',
+  },
+  {
+    repo: 'Systran/faster-whisper-large-v3',
+    engines: ['faster-whisper', 'faster-whisper-isolated', 'whisperx'],
+    current: 'pytorch-whisper',
+    expected: 'faster-whisper',
+  },
+  {
+    repo: 'deepdml/faster-whisper-large-v3-turbo-ct2',
+    engines: ['faster-whisper', 'faster-whisper-isolated', 'whisperx'],
+    current: 'faster-whisper-isolated',
+    expected: 'faster-whisper-isolated',
+  },
+])('selects installed $repo via $expected when $current is active', async ({ repo, engines, current, expected }) => {
+  let selected = false;
+  mock.api.mockImplementation((path: string) => {
+    if (path === '/models') {
+      return Promise.resolve({
+        models: [{
+          repo_id: repo,
+          engines,
+          label: 'Installed Whisper',
+          role: 'ASR',
+          size_gb: 3.1,
+          installed: true,
+          supported: true,
+        }],
+      });
+    }
+    if (path === '/models/install/status') return Promise.resolve({ jobs: [] });
+    if (path === '/model/loaded') return Promise.resolve({ models: [], count: 0 });
+    if (path === '/engines') {
+      return Promise.resolve({
+        asr: {
+          active: selected ? expected : current,
+          active_model: selected ? repo : 'another/model',
+          backends: [{ id: expected, available: true }],
+        },
+      });
+    }
+    if (path === '/engines/select') {
+      selected = true;
+      return Promise.resolve({ active: expected });
+    }
+    return Promise.resolve({});
+  });
+  const client = new QueryClient();
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  render(
+    <QueryClientProvider client={client}>
+      <ModelLibrary family="asr" />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: 'modelSettings.select' }));
+
+  await waitFor(() => expect(mock.api).toHaveBeenCalledWith(
+    '/engines/select',
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ family: 'asr', backend_id: expected, model_id: repo }),
+    }),
+  ));
+  expect(await screen.findByRole('button', { name: 'modelSettings.selected' })).toBeDisabled();
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['engines'] });
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['performance-profile'] });
+  expect(mock.api.mock.calls.every(([path]) => path !== '/models/install')).toBe(true);
+});
+
 it('surfaces an interrupted cache as repairable and removable', async () => {
   mock.api.mockImplementation((path: string) => {
     if (path === '/models') {

@@ -862,10 +862,8 @@ def engine_selftest(engine_id: str):
 class SelectEngineRequest(BaseModel):
     family: str   # "tts" | "asr" | "llm"
     backend_id: str
-    # Only meaningful for family="tts", backend_id="mlx-audio" (#981) — picks
-    # which of mlx-audio's curated models is actually loaded. A curated key
-    # ("kokoro") or a raw HF repo id ("mlx-community/Kokoro-82M-bf16") — the
-    # same tolerance MLXAudioBackend.__init__ already has. Ignored otherwise.
+    # mlx-audio accepts a curated key or HF repo id; the Whisper ASR backends
+    # accept an installed, compatible catalogue repo id. Ignored otherwise.
     model_id: str | None = None
 
 
@@ -939,7 +937,20 @@ def select_engine(req: SelectEngineRequest):
                 "Hugging Face repo ID like 'owner/name'.",
             )
         prefs.set_("mlx_audio_model_id", req.model_id)
-    if req.family == "asr" and req.model_id is not None:
+    if req.family == "asr" and req.backend_id == "pytorch-whisper" and req.model_id is not None:
+        from api.routers.setup.models import get_model_catalog, installed_snapshot_path
+
+        model = get_model_catalog().get(req.model_id)
+        if (model is None or str(model.get("role", "")).lower() != "asr"
+                or "pytorch-whisper" not in (model.get("engines") or ())):
+            raise HTTPException(400, "This model is not compatible with PyTorch Whisper")
+        if installed_snapshot_path(req.model_id) is None:
+            raise HTTPException(409, "Install this complete ASR model before selecting it")
+        try:
+            asr_backend.select_pytorch_whisper_model(req.model_id)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+    elif req.family == "asr" and req.model_id is not None:
         if req.backend_id not in {"faster-whisper", "faster-whisper-isolated"}:
             raise HTTPException(400, "This ASR engine does not accept a CTranslate2 model")
         from api.routers.setup.models import KNOWN_MODELS, is_cached

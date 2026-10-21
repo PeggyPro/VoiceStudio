@@ -440,6 +440,77 @@ test('a failed taskkill falls back to signalling the direct child', () => {
   assert.equal(child.killedWith, 'SIGTERM');
 });
 
+test('a partial taskkill succeeds when the owned root was running and is now gone', () => {
+  const child = { pid: 4242, killedWith: null, kill(sig) { this.killedWith = sig; } };
+  const events = [];
+  const result = killProcessTree(child, 'SIGTERM', {
+    platform: 'win32',
+    isRunning: (pid) => {
+      assert.equal(pid, child.pid);
+      events.push('probe');
+      return events.length === 1;
+    },
+    run: () => {
+      events.push('taskkill');
+      // Windows reports an already-exited launcher even though it killed uv.
+      return { status: 255 };
+    },
+  });
+  assert.equal(result, 'taskkill');
+  assert.equal(child.killedWith, null);
+  assert.deepEqual(events, ['probe', 'taskkill', 'probe']);
+});
+
+test('a partial taskkill does not claim a pre-existing exit or a still-running root', () => {
+  for (const alive of [[false, false], [true, true]]) {
+    const child = { pid: 4242, killedWith: null, kill(sig) { this.killedWith = sig; } };
+    const result = killProcessTree(child, 'SIGTERM', {
+      platform: 'win32',
+      isRunning: () => alive.shift(),
+      run: () => ({ status: 255 }),
+    });
+    assert.equal(result, 'fallback');
+    assert.equal(child.killedWith, 'SIGTERM');
+  }
+});
+
+test('an unavailable taskkill cannot turn a concurrent exit into an intended tree kill', () => {
+  const child = { pid: 4242, killedWith: null, kill(sig) { this.killedWith = sig; } };
+  const alive = [true, false];
+  const result = killProcessTree(child, 'SIGTERM', {
+    platform: 'win32',
+    isRunning: () => alive.shift(),
+    run: () => ({ status: null, error: Object.assign(new Error('missing taskkill'), { code: 'ENOENT' }) }),
+  });
+  assert.equal(result, 'fallback');
+  assert.equal(child.killedWith, 'SIGTERM');
+});
+
+test('partial Windows tree kills can reload repeatedly without exhausting crash recovery', () => {
+  const harness = supervisorHarness({
+    killBackend: (child, signal) => {
+      child.pid = 4242;
+      const alive = [true, false];
+      return killProcessTree(child, signal, {
+        platform: 'win32',
+        isRunning: () => alive.shift(),
+        run: () => {
+          child.emit('exit', 1, null);
+          return { status: 255 };
+        },
+      });
+    },
+  });
+  harness.supervisor.start();
+  for (let reload = 0; reload < 6; reload++) {
+    harness.watchers[0].onChange('main.py');
+    harness.runNextTimer();
+    assert.equal(harness.children.length, reload + 2);
+  }
+  assert.deepEqual(harness.exits, []);
+  assert.doesNotMatch(harness.reports.join('\n'), /BACKEND DIED|restarting in|stopped after/);
+});
+
 test('a forced tree-kill reload restarts instead of reporting a crash', () => {
   const harness = supervisorHarness({ killBackend: () => 'taskkill' });
   harness.supervisor.start();

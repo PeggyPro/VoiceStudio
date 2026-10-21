@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { createServer } from "node:net";
 import test from "node:test";
 
 import {
@@ -16,9 +18,48 @@ test("parses only requested Windows TCP listeners", () => {
   const output = [
     "  TCP    0.0.0.0:3900    0.0.0.0:0    LISTENING    1234",
     "  TCP    [::]:3901       [::]:0       LISTENING    5678",
+    "  TCP    [::1]:3901      [::]:0       LISTENING    5678",
     "  TCP    0.0.0.0:5173    0.0.0.0:0    LISTENING    9999",
+    "  TCP    127.0.0.1:3901  127.0.0.1:5555 ESTABLISHED 8888",
+    "  TCP    [::1]:3901      [::1]:5555   TIME_WAIT    0",
+    "  UDP    0.0.0.0:3900    *:*                       7777",
+    "  UDP    [::]:3901       *:*                       6666",
   ].join("\r\n");
   assert.deepEqual(parseWindowsListeners(output, [3900, 3901]), [1234, 5678]);
+});
+
+test("Windows discovery finds real IPv4 and IPv6 loopback listeners", {
+  skip: process.platform !== "win32",
+}, async (t) => {
+  const ports = [];
+  for (const host of ["127.0.0.1", "::1"]) {
+    const server = createServer();
+    t.after(() => new Promise((done) => server.close(done)));
+    try {
+      await new Promise((done, reject) => {
+        server.once("error", reject);
+        server.listen({ host, port: 0 }, done);
+      });
+    } catch (error) {
+      if (host === "::1" && ["EAFNOSUPPORT", "EADDRNOTAVAIL"].includes(error.code)) {
+        t.skip("IPv6 loopback is unavailable");
+        return;
+      }
+      throw error;
+    }
+    ports.push(server.address().port);
+  }
+  // Discover from a child because the cleaner deliberately excludes its own PID.
+  const moduleUrl = new URL("../../scripts/clear-dev-ports.mjs", import.meta.url).href;
+  const script = `import { windowsListeners } from ${JSON.stringify(moduleUrl)};
+    console.log(JSON.stringify(${JSON.stringify(ports)}.map(port => windowsListeners([port]))));`;
+  const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+    encoding: "utf8",
+    timeout: 15_000,
+  });
+  assert.ifError(result.error);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), [[process.pid], [process.pid]]);
 });
 
 test("parses only requested Linux listeners and deduplicates pids", () => {

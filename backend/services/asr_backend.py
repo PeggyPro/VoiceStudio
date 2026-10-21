@@ -1492,9 +1492,7 @@ class PyTorchWhisperBackend(ASRBackend):
 
     @staticmethod
     def _model_name() -> str:
-        return os.environ.get(
-            "OMNIVOICE_PYTORCH_ASR_MODEL", "openai/whisper-large-v3-turbo"
-        )
+        return pytorch_whisper_model_id()
 
     @classmethod
     def is_available(cls) -> tuple[bool, str]:
@@ -3887,7 +3885,48 @@ def _select_capture_asr_backend(*, skip_sherpa: bool) -> ASRBackend:
 ASR_MODEL_MISSING = "asr_model_missing"
 
 _PYTORCH_ASR_DEFAULT = "openai/whisper-large-v3-turbo"
+_PYTORCH_ASR_ENV = "OMNIVOICE_PYTORCH_ASR_MODEL"
 _FASTER_WHISPER_DEFAULT = "Systran/faster-whisper-large-v3"
+
+
+def pytorch_whisper_model_id() -> str:
+    """Resolve the native Torch pick before or after startup restores env prefs."""
+    from core import prefs
+
+    return str(prefs.resolve(
+        "env." + _PYTORCH_ASR_ENV, env=_PYTORCH_ASR_ENV, default=_PYTORCH_ASR_DEFAULT,
+    ))
+
+
+def select_pytorch_whisper_model(repo_id: str) -> None:
+    """Persist a validated catalogue pick and release stale native ASR caches."""
+    global _capture_backend, _capture_backend_key
+    import sys
+    from core import prefs
+    from services.model_acceptance import ensure_accepted
+
+    if prefs.is_env_shadowed(_PYTORCH_ASR_ENV):
+        raise ValueError(f"{_PYTORCH_ASR_ENV} is set outside VoiceStudio")
+    ensure_accepted([repo_id])
+    previous = pytorch_whisper_model_id()
+    # env.* is restored at startup and inherited by future TTS sidecars too.
+    prefs.set_("env." + _PYTORCH_ASR_ENV, repo_id)
+    os.environ[_PYTORCH_ASR_ENV] = repo_id
+    if previous == repo_id:
+        return
+    with _capture_backend_lock:
+        if isinstance(_capture_backend, PyTorchWhisperBackend):
+            _capture_backend = None
+            _capture_backend_key = None
+    # Dub and reference transcription can reuse the ASR pipeline on resident
+    # TTS. Drop only that optional head; the TTS model remains loaded.
+    manager = sys.modules.get("services.model_manager")
+    model = getattr(manager, "model", None)
+    if getattr(model, "_asr_pipe", None) is not None:
+        model._asr_pipe = None
+    tts = sys.modules.get("services.tts_backend")
+    if tts is not None:
+        tts.invalidate_omnivoice_asr()
 
 
 def faster_whisper_model_id() -> str:
@@ -4003,7 +4042,7 @@ def _offline_asr_repo(backend_id: str | None = None) -> str | None:
         except Exception:  # noqa: BLE001 — preflight must stay best-effort
             return None
     if bid == "pytorch-whisper":
-        return os.environ.get("OMNIVOICE_PYTORCH_ASR_MODEL", _PYTORCH_ASR_DEFAULT)
+        return pytorch_whisper_model_id()
     return None
 
 
@@ -4027,7 +4066,7 @@ def _capture_whisper_repo() -> str | None:
         # OPEN rather than coerce to the default repo and demand a download
         # of a model the user never picked.
         return _fw_repo(faster_whisper_model_id())
-    return os.environ.get("OMNIVOICE_PYTORCH_ASR_MODEL", _PYTORCH_ASR_DEFAULT)
+    return pytorch_whisper_model_id()
 
 
 def _recommended_asr_model(

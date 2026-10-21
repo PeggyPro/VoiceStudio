@@ -9,8 +9,11 @@ genuinely uses **AMD ROCm** GPUs, so auto-detect picks it on ROCm hosts
 
 ## Selecting it
 
-- **Model Catalogue**, ASR tab → **Use** on the PyTorch Whisper
-  row, or `OMNIVOICE_ASR_BACKEND=pytorch-whisper`.
+- **Settings → Models → ASR** → install the PyTorch Whisper model, then
+  **Select** on its model card. This selects both the `pytorch-whisper` engine
+  and that installed checkpoint; no additional model download is needed.
+- To select only the engine, use its **Select** button in the engine list,
+  or set `OMNIVOICE_ASR_BACKEND=pytorch-whisper`.
 - `OMNIVOICE_ASR_BACKEND=omnivoice` is accepted as a compatibility alias and
   selects this same PyTorch-native ASR path on ROCm hosts.
 - Auto-detect picks it on ROCm, and as the last resort everywhere else.
@@ -35,8 +38,15 @@ macOS, Windows, and Linux.
 
 ## Model selection
 
-`OMNIVOICE_PYTORCH_ASR_MODEL` — default `openai/whisper-large-v3-turbo`. Any
-transformers-format Whisper repo works. Weights download on first load — see
+The model-card selection is saved across app restarts and takes effect on the
+next transcription, including reference-audio transcription. It is independent
+of the Faster-Whisper selection: PyTorch needs transformers-format weights,
+while Faster-Whisper needs CTranslate2 weights.
+
+An externally set `OMNIVOICE_PYTORCH_ASR_MODEL` takes precedence over the saved
+selection. When neither is set, the default is `openai/whisper-large-v3-turbo`.
+Any transformers-format Whisper repo works through this environment variable;
+install its weights before offline use — see
 [downloading-models](../downloading-models.md).
 
 ## VRAM preflight

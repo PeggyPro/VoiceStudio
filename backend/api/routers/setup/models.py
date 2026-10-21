@@ -8,6 +8,7 @@ Extracted from the monolithic ``setup.py`` to keep concerns separate:
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import platform as _platform
@@ -333,8 +334,45 @@ def _snapshot_dirs(repo_id: str) -> list[str]:
     return dirs
 
 
+def _pytorch_whisper_snapshot_complete(snapshot_path: str) -> bool:
+    """A Torch Whisper install needs its processor and every weight shard."""
+    root = Path(snapshot_path)
+
+    def present(name: str, minimum: int = 1) -> bool:
+        path = root / name
+        return path.is_file() and path.stat().st_size >= minimum
+
+    try:
+        if not all(present(name) for name in ("config.json", "preprocessor_config.json")):
+            return False
+        if not (present("tokenizer.json") or (present("vocab.json") and present("merges.txt"))):
+            return False
+        # Match transformers' preference: a partial safetensors file/index
+        # shadows a complete .bin install, so that snapshot is still unusable.
+        for weights in ("model.safetensors", "pytorch_model.bin"):
+            if (root / weights).is_file():
+                return present(weights, _MIN_WEIGHT_BYTES)
+            index = root / (weights + ".index.json")
+            if index.is_file():
+                try:
+                    data = json.loads(index.read_text(encoding="utf-8"))
+                    shards = set(data["weight_map"].values())
+                    return bool(shards) and all(
+                        isinstance(name, str) and Path(name).name == name
+                        and present(name, _MIN_WEIGHT_BYTES) for name in shards
+                    )
+                except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                    return False
+    except OSError:
+        return False
+    return False
+
+
 def snapshot_is_complete(model: dict, snapshot_path: str) -> bool:
     """Apply the same catalogue requirements during installation and listing."""
+    if "pytorch-whisper" in (model.get("engines") or ()):
+        if not _pytorch_whisper_snapshot_complete(snapshot_path):
+            return False
     config_only = bool(model.get("config_only"))
     required = tuple(str(name) for name in (
         model.get("config_required_files") if config_only else model.get("required_files")

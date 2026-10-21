@@ -752,14 +752,24 @@ export function ModelLibrary({
       setPending(null);
     }
   };
-  const selectableAsrModel = (repoId: string) =>
-    repoId.startsWith('Systran/faster-') || repoId === 'deepdml/faster-whisper-large-v3-turbo-ct2';
+  const asrBackendForModel = (model: CatalogueModel) => {
+    if (model.engines?.includes('pytorch-whisper')) return 'pytorch-whisper';
+    if (
+      model.engines?.includes('faster-whisper') ||
+      model.repo_id.startsWith('Systran/faster-') ||
+      model.repo_id === 'deepdml/faster-whisper-large-v3-turbo-ct2'
+    ) {
+      const current = engineQuery.data?.asr?.active;
+      return current === 'faster-whisper-isolated' ? current : 'faster-whisper';
+    }
+    return null;
+  };
   const selectAsrModel = async (model: CatalogueModel) => {
+    const backendId = asrBackendForModel(model);
+    if (!backendId) return;
     setPending(model.repo_id);
     setFailed(false);
     try {
-      const current = engineQuery.data?.asr?.active;
-      const backendId = current === 'faster-whisper-isolated' ? current : 'faster-whisper';
       const result = await apiJson<EngineSelectionResult>('/engines/select', {
         method: 'POST',
         body: JSON.stringify({
@@ -867,7 +877,7 @@ export function ModelLibrary({
       : null;
     const resident = residentFor(model);
     const isAsrModel = model.role.toLowerCase() === 'asr' && !model.dictation_id;
-    const selectableAsr = isAsrModel && selectableAsrModel(model.repo_id);
+    const selectableAsr = isAsrModel && asrBackendForModel(model) !== null;
     const checkingAsrSelection = selectableAsr && !engineQuery.data;
     const activeAsrModel = isAsrModel && engineQuery.data?.asr?.active_model === model.repo_id;
     const engineFamily = model.role.toLowerCase();
