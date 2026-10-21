@@ -18,6 +18,10 @@ set of recommended models.
 
 Open a model's **Licence** details to check its terms and review status.
 
+The TTS model chosen by the active engine has a **Selected** badge and a
+highlighted card, even before its weights are loaded. **Installed** means its
+files are on disk; **In memory** indicates loaded weights.
+
 ## Download backend: legacy LFS by default (accurate progress)
 
 VoiceStudio ships `hf_xet` (Hugging Face's chunked, parallel, dedup transfer

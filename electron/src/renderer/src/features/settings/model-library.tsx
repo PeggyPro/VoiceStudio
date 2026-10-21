@@ -606,6 +606,15 @@ export function ModelLibrary({
       );
     return model.role.toLowerCase() === family && !model.dictation_id;
   });
+  const activeTts = engineFamilyState(engineQuery.data, 'tts');
+  // Single-model engines may report no model id before loading their weights.
+  // Resolve only an unambiguous catalogue entry, before search/licence filtering.
+  const activeTtsModels = models?.filter(
+    (model) =>
+      model.role.toLowerCase() === 'tts' &&
+      Boolean(activeTts?.active && model.engines?.includes(activeTts.active)),
+  );
+  const inferredTtsModel = activeTtsModels?.length === 1 ? activeTtsModels[0].repo_id : undefined;
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const visibleModels = models?.filter((model) => {
     if (
@@ -898,7 +907,8 @@ export function ModelLibrary({
     const activeEngineModel =
       family === engineFamily &&
       (engineFamily === 'tts' || engineFamily === 'asr' || engineFamily === 'llm') &&
-      engineQuery.data?.[engineFamily]?.active_model === model.repo_id;
+      (engineQuery.data?.[engineFamily]?.active_model ??
+        (engineFamily === 'tts' ? inferredTtsModel : undefined)) === model.repo_id;
     const activeDictationModel =
       Boolean(model.dictation_id) &&
       dictationPrefs.data?.enabled === true &&
