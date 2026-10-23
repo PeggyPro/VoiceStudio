@@ -7,6 +7,14 @@ export interface DictationSelectionModel {
   id: string;
   label: string;
   installed: boolean;
+  repo_id?: string;
+}
+
+export interface DictationCaptureSelection {
+  model_id: string | null;
+  repo_id: string | null;
+  label?: string;
+  available: boolean;
 }
 
 export function useDictationSelection() {
@@ -21,12 +29,14 @@ export function useDictationSelection() {
         apiJson<{
           engine_available: boolean;
           models: DictationSelectionModel[];
+          capture_selection?: DictationCaptureSelection;
         }>('/dictation/models'),
       ]);
       return {
         ...prefs,
         available: catalogue.engine_available,
         model: catalogue.models.find((model) => model.id === prefs.model_id),
+        capture: catalogue.capture_selection,
       };
     },
   });

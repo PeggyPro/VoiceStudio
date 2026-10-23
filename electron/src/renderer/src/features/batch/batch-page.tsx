@@ -189,7 +189,7 @@ export function BatchPage() {
   };
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspaceHeader>
+      <WorkspaceHeader models={['asr', 'translation', 'tts']}>
         <h1 className="text-sm font-medium">{t('nav.batch_dub')}</h1>
       </WorkspaceHeader>
       <div className="flex min-h-0 flex-1 @max-[40rem]:flex-col">

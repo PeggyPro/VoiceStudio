@@ -373,6 +373,11 @@
     "collapse": "ยุบแผง",
     "edit": "แก้ไขโปรไฟล์เสียง"
   },
+  "pageModels": {
+    "title": "โมเดลของหน้านี้",
+    "unknownModel": "ไม่มีการรายงานโมเดล",
+    "openSettings": "เปิดการตั้งค่าโมเดล {{family}}"
+  },
   "modelSettings": {
     "models": "โมเดล",
     "licenseFilter": "กรองโมเดลตามสัญญาอนุญาต",

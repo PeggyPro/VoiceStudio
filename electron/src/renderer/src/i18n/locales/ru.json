@@ -377,6 +377,11 @@
     "collapse": "Свернуть панель",
     "edit": "Редактировать голосовой профиль"
   },
+  "pageModels": {
+    "title": "Модели страницы",
+    "unknownModel": "Модель не указана",
+    "openSettings": "Открыть настройки моделей {{family}}"
+  },
   "modelSettings": {
     "models": "Модели",
     "licenseFilter": "Фильтровать модели по лицензии",

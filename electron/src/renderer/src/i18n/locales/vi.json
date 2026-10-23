@@ -373,6 +373,11 @@
     "collapse": "Thu gọn bảng",
     "edit": "Chỉnh sửa hồ sơ giọng nói"
   },
+  "pageModels": {
+    "title": "Mô hình của trang",
+    "unknownModel": "Chưa có thông tin mô hình",
+    "openSettings": "Mở cài đặt mô hình {{family}}"
+  },
   "modelSettings": {
     "models": "Mô hình",
     "licenseFilter": "Lọc mô hình theo giấy phép",

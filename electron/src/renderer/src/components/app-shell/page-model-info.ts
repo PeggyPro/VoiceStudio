@@ -37,6 +37,8 @@ export function enginePageModel(
   const residents = loaded.filter(
     (entry) =>
       family === 'tts' &&
+      // A live worker can exist after a health ping, before any weights load.
+      !entry.id.startsWith('sidecar:') &&
       (entry.engine_id === selection.active ||
         (entry.id === 'tts' && selection.active === 'omnivoice')),
   );
@@ -48,12 +50,19 @@ export function enginePageModel(
     residentModel?.checkpoint;
   const matchingResident =
     family === 'tts'
-      ? residents.some((entry) => entry.checkpoint === model) ||
-        (!residentModel &&
-          candidates.length === 1 &&
-          candidates[0].repo_id === model &&
-          residents.length > 0)
-      : family === 'asr' && loaded.some((entry) => entry.id === 'asr' && entry.checkpoint === model);
+      ? residents.some(
+          (entry) => entry.checkpoint !== selection.active && entry.checkpoint === model,
+        )
+      : family === 'asr' &&
+        loaded.some(
+          (entry) =>
+            entry.id === 'asr' &&
+            entry.checkpoint === model &&
+            // Legacy ASR inventory belongs only to the co-loaded WhisperX pipe.
+            (entry.engine_id
+              ? entry.engine_id === selection.active
+              : selection.active === 'whisperx'),
+        );
   return {
     model,
     label: catalogue.find((entry) => entry.repo_id === model)?.label,

@@ -377,6 +377,11 @@
     "collapse": "Zwiń panel",
     "edit": "Edytuj profil głosu"
   },
+  "pageModels": {
+    "title": "Modele strony",
+    "unknownModel": "Nie zgłoszono modelu",
+    "openSettings": "Otwórz ustawienia modeli {{family}}"
+  },
   "modelSettings": {
     "models": "Modele",
     "licenseFilter": "Filtruj modele według licencji",

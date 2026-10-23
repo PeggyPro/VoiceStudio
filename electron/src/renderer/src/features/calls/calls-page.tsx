@@ -361,7 +361,7 @@ export function CallsPage({ onCanvas, initialDraft }: { onCanvas?: () => void; i
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-layout={layout}>
-      <WorkspaceHeader>
+      <WorkspaceHeader models={['tts', { family: 'dictation', routing: 'capture' }, 'llm']}>
         <h1 className="text-sm font-medium">{t('calls.title')}</h1>
         {onCanvas && <Button size="sm" variant="outline" onClick={onCanvas}><WorkflowIcon aria-hidden="true" />{t('workflows.canvas')}</Button>}
         <Button

@@ -375,6 +375,11 @@
     "collapse": "Contraer panel",
     "edit": "Editar perfil de voz"
   },
+  "pageModels": {
+    "title": "Modelos de la página",
+    "unknownModel": "Modelo no informado",
+    "openSettings": "Abrir la configuración de modelos de {{family}}"
+  },
   "modelSettings": {
     "models": "Modelos",
     "licenseFilter": "Filtrar modelos por licencia",

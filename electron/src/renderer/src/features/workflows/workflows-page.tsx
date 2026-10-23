@@ -12,6 +12,7 @@ import {
   PhoneCallIcon, PlayIcon, PlusIcon, Trash2Icon, WorkflowIcon, WandSparklesIcon, AudioLinesIcon, MicIcon, LanguagesIcon, ArrowLeftRightIcon,
 } from 'lucide-react';
 import { WorkspaceHeader } from '@/components/app-shell/workspace-header';
+import type { PageModelSpec } from '@/components/app-shell/page-models';
 import { Button } from '@/components/ui/button';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -122,6 +123,15 @@ function WorkflowCanvas({ onCalls }: { onCalls: (call?: Pick<WorkflowStep, 'phon
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const templates = ['restaurant', 'reschedule', 'hours'] as const;
   const document = library.documents.find((item) => item.id === library.activeId) ?? library.documents[0];
+  const pageModels = document.steps.flatMap((step): PageModelSpec[] => {
+    switch (step.kind) {
+      case 'speak': return ['tts'];
+      case 'transcribe': return ['asr'];
+      case 'convert': return ['asr', 'tts'];
+      case 'translate': return [{ family: 'translation', engineId: step.provider === 'nllb' ? 'nllb' : 'argos' }];
+      default: return [];
+    }
+  });
   const selected = document.steps.find((step) => step.id === selectedId) ?? null;
   const [nodes, setNodes, onNodesChange] = useNodesState<CanvasNode>([]);
 
@@ -205,7 +215,7 @@ function WorkflowCanvas({ onCalls }: { onCalls: (call?: Pick<WorkflowStep, 'phon
   };
 
   return <div className="workflow-page">
-    <WorkspaceHeader>
+    <WorkspaceHeader models={pageModels}>
       <WorkflowIcon size={17} aria-hidden="true" />
       <h1 className="text-sm font-medium">{t('workflows.title')}</h1>
       <Button size="sm" variant="outline" disabled={running} onClick={() => onCalls()}><PhoneCallIcon aria-hidden="true" />{t('calls.title')}</Button>

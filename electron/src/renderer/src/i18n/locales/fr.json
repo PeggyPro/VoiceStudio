@@ -375,6 +375,11 @@
     "collapse": "Réduire le panneau",
     "edit": "Modifier le profil vocal"
   },
+  "pageModels": {
+    "title": "Modèles de la page",
+    "unknownModel": "Modèle non indiqué",
+    "openSettings": "Ouvrir les paramètres des modèles {{family}}"
+  },
   "modelSettings": {
     "models": "Modèles",
     "licenseFilter": "Filtrer les modèles par licence",

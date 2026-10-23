@@ -1,4 +1,5 @@
 import { SupportShortcut } from '@/components/app-shell/support-shortcut';
+import { PageModels } from '@/components/app-shell/page-models';
 import { SidebarToggle } from '@/components/app-shell/sidebar-toggle';
 import { EditProfile } from './edit-profile';
 import { ProfileAvatar } from '@/components/profile-avatar';
@@ -177,6 +178,7 @@ export function ClonePage() {
               </Button>
             </div>
           </header>
+          <PageModels models={['tts', 'asr']} />
           <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-5 overflow-y-auto px-6 pt-6 pb-4">
             <EngineNotice operation="clone" />
             {choosingVoice ? (

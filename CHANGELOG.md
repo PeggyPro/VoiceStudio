@@ -16,6 +16,7 @@ metadata and the backend fallback mirror it.
 
 - Settings model lists default to commercial-use models, with a licence filter beside the Models heading for non-commercial use or all models.
 - TTS model cards identify the selected model even when its engine has not loaded the weights yet.
+- Functional pages show compact model cards with selected and in-memory states and links to each model family's settings.
 
 ### Added
 

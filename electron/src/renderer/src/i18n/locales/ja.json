@@ -373,6 +373,11 @@
     "collapse": "パネルを折りたたむ",
     "edit": "音声プロフィールを編集"
   },
+  "pageModels": {
+    "title": "このページのモデル",
+    "unknownModel": "モデルが報告されていません",
+    "openSettings": "{{family}} のモデル設定を開く"
+  },
   "modelSettings": {
     "models": "モデル",
     "licenseFilter": "ライセンスでモデルを絞り込む",

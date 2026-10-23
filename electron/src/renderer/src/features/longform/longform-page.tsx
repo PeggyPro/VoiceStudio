@@ -209,7 +209,7 @@ export function LongformPage({ mode }: { mode: Mode }) {
   };
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspaceHeader>
+      <WorkspaceHeader models={['tts']}>
         <h1 className="text-sm font-medium">
           {t(mode === 'stories' ? 'nav.stories' : 'audiobook.title')}
         </h1>

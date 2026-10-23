@@ -1977,6 +1977,10 @@ class VoxCPM2Backend(TTSBackend):
             "pl", "pt", "ru", "es", "sw", "sv", "tl", "th", "tr", "vi",
         ]
 
+    @classmethod
+    def model_identity(cls) -> str:
+        return os.environ.get("OMNIVOICE_VOXCPM_MODEL", "openbmb/VoxCPM2")
+
     def _ensure_loaded(self):
         if self._model is not None:
             return
@@ -1987,7 +1991,7 @@ class VoxCPM2Backend(TTSBackend):
         if hint:
             logger.warning("VoxCPM2: %s", hint)
         from voxcpm import VoxCPM  # type: ignore[import-not-found]
-        checkpoint = os.environ.get("OMNIVOICE_VOXCPM_MODEL", "openbmb/VoxCPM2")
+        checkpoint = self.model_identity()
         logger.info("Loading VoxCPM2 from %s", checkpoint)
         # #1224: this first-use download is multi-GB. Unretried, a truncated
         # body at 90% aborted the load outright.
@@ -2127,6 +2131,10 @@ class MossTTSNanoBackend(TTSBackend):
             "fa", "ar", "pl", "pt", "cs", "da", "sv", "hu", "el", "tr",
         ]
 
+    @classmethod
+    def model_identity(cls) -> str:
+        return os.environ.get("OMNIVOICE_MOSS_TTS_MODEL", "OpenMOSS-Team/MOSS-TTS-Nano")
+
     def _ensure_loaded(self):
         if self._model is not None:
             return
@@ -2140,9 +2148,7 @@ class MossTTSNanoBackend(TTSBackend):
             raise RuntimeError(
                 "moss_tts_nano exposes no usable model class; see Model Catalogue"
             )
-        checkpoint = os.environ.get(
-            "OMNIVOICE_MOSS_TTS_MODEL", "OpenMOSS-Team/MOSS-TTS-Nano"
-        )
+        checkpoint = self.model_identity()
         logger.info("Loading MOSS-TTS-Nano from %s", checkpoint)
         self._model = _retry_once_with_fresh_hf_client(
             lambda: model_cls.from_pretrained(checkpoint, trust_remote_code=True),
@@ -2228,13 +2234,15 @@ class KittenTTSBackend(TTSBackend):
     def supported_languages(self) -> list[str]:
         return ["en"]
 
+    @classmethod
+    def model_identity(cls) -> str:
+        return os.environ.get("OMNIVOICE_KITTENTTS_MODEL", "KittenML/kitten-tts-mini-0.8")
+
     def _ensure_loaded(self):
         if self._model is not None:
             return
         from kittentts import KittenTTS
-        checkpoint = os.environ.get(
-            "OMNIVOICE_KITTENTTS_MODEL", "KittenML/kitten-tts-mini-0.8"
-        )
+        checkpoint = self.model_identity()
         logger.info("Loading KittenTTS from %s", checkpoint)
         # #880: the first-use load downloads ~80 MB from the HF Hub inside the
         # generate path; if the hub's shared httpx client was closed
@@ -2922,10 +2930,11 @@ class CosyVoiceBackend(TTSBackend):
             "pretrained_models/Fun-CosyVoice3-0.5B",
         )
 
-    def model_identity(self) -> Optional[str]:
+    @classmethod
+    def model_identity(cls) -> str:
         # v1/v2/v3 all live behind the one "cosyvoice" id — the directory
         # basename is the only thing that tells the models apart.
-        return os.path.basename(os.path.normpath(self._resolved_model_dir()))
+        return os.path.basename(os.path.normpath(cls._resolved_model_dir()))
 
     def _ensure_loaded(self):
         if self._model is not None:
@@ -3847,6 +3856,21 @@ def get_backend_class(backend_id: str) -> type[TTSBackend]:
     if backend_id not in _REGISTRY:
         raise ValueError(f"Unknown TTS backend: {backend_id!r}. Known: {list(_REGISTRY)}")
     return _effective_backend_class(backend_id, _REGISTRY[backend_id])
+
+
+def configured_model_identity(backend_id: str) -> Optional[str]:
+    """Resolve configurable checkpoints without constructing a worker.
+
+    These engines share their model setting with their own-venv sidecars; use
+    the in-process declarations so metadata never needs to start a sidecar.
+    """
+    cls = {
+        "cosyvoice": CosyVoiceBackend,
+        "voxcpm2": VoxCPM2Backend,
+        "kittentts": KittenTTSBackend,
+        "moss-tts-nano": MossTTSNanoBackend,
+    }.get(backend_id)
+    return cls.model_identity() if cls is not None else None
 
 
 def output_sample_rate(backend_id: str) -> Optional[int]:

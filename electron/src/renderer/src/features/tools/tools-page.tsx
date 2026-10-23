@@ -2,6 +2,7 @@ import { AudioWaveformIcon, GitCompareArrowsIcon, WrenchIcon } from 'lucide-reac
 import { SecondarySidebar } from '@/components/workspace-sidebar';
 import { ConvertVoice } from './convert-voice';
 import { WorkspaceHeader } from '@/components/app-shell/workspace-header';
+import type { PageModelSpec } from '@/components/app-shell/page-models';
 import { CompareVoices } from './compare-voices';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
@@ -43,9 +44,18 @@ export function ToolsPage() {
   const [comparing, setComparing] = useState(false);
   const [converting, setConverting] = useState(false);
   const [selected, setSelected] = useState<Tool>(tools[0]);
+  const models: readonly PageModelSpec[] = converting
+    ? ['asr', 'tts']
+    : comparing
+      ? ['tts']
+      : selected.id === 'direction'
+        ? [{ family: 'llm', skill: 'direction_parse' }]
+        : selected.id === 'rate-fit'
+          ? [{ family: 'llm', skill: 'slot_fitting' }]
+          : [];
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspaceHeader>
+      <WorkspaceHeader models={models}>
         <h1 className="text-sm font-medium">{t('tools.title')}</h1>
       </WorkspaceHeader>
       <div className="flex min-h-0 flex-1 @max-[40rem]:flex-col">

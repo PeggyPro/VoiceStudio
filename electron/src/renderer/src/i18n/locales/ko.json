@@ -373,6 +373,11 @@
     "collapse": "패널 접기",
     "edit": "음성 프로필 편집"
   },
+  "pageModels": {
+    "title": "페이지 모델",
+    "unknownModel": "모델 정보가 보고되지 않음",
+    "openSettings": "{{family}} 모델 설정 열기"
+  },
   "modelSettings": {
     "models": "모델",
     "licenseFilter": "라이선스로 모델 필터링",

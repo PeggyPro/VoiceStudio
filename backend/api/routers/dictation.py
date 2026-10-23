@@ -4,7 +4,7 @@ Dictation router — sherpa-onnx live-dictation engine.
 Exposes the seven sherpa-onnx dictation models and the dictation prefs the
 frontend dictation UI binds to.
 
-    GET  /dictation/models   → the 7 models + install state (frontend model list)
+    GET  /dictation/models   → the 7 models + install state + effective capture selection
     GET  /dictation/prefs    → { enabled, mode, model_id, prompt }
     POST /dictation/prefs    → persist any subset of those prefs
 
@@ -85,6 +85,41 @@ def _read_prefs() -> dict:
     }
 
 
+def _capture_selection(*, sherpa_available: bool) -> dict:
+    """Read-only auto capture selection; recorder prefs remain a separate pick.
+
+    Availability means the chosen runtime and local weights can be verified,
+    without constructing a backend, loading weights, or downloading anything.
+    An unresolved selection is explicitly unknown rather than a default model.
+    """
+    unknown = {"model_id": None, "repo_id": None, "available": False}
+    try:
+        from services import asr_backend
+
+        model_id = asr_backend.dictation_model_id()
+        spec = sd.get_spec(model_id) if model_id and sherpa_available else None
+        if spec is not None:
+            return {
+                "model_id": spec.id,
+                "repo_id": spec.repo_id,
+                "label": spec.label,
+                "available": sd.is_installed(spec),
+            }
+        repo_id = asr_backend._licence_repo(
+            asr_backend._capture_whisper_repo(require_available=True),
+        )
+        if repo_id is None:
+            return unknown
+        return {
+            "model_id": None,
+            "repo_id": repo_id,
+            "available": asr_backend._repo_installed(repo_id),
+        }
+    except Exception:  # noqa: BLE001 — metadata must not break the model list
+        logger.warning("Capture model metadata could not be resolved", exc_info=True)
+        return unknown
+
+
 @router.get("/dictation/models", dependencies=[Depends(require_local)])
 def list_dictation_models():
     """The seven sherpa-onnx dictation models + install state.
@@ -113,6 +148,7 @@ def list_dictation_models():
         "engine_available": available,
         "engine_reason": None if available else public_unavailability(reason),
         "default_model_id": sd.DEFAULT_MODEL_ID,
+        "capture_selection": _capture_selection(sherpa_available=available),
     }
 
 

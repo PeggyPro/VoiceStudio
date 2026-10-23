@@ -386,6 +386,11 @@
     "collapse": "折叠面板",
     "edit": "编辑声音档案"
   },
+  "pageModels": {
+    "title": "页面模型",
+    "unknownModel": "未报告模型",
+    "openSettings": "打开 {{family}} 模型设置"
+  },
   "modelSettings": {
     "models": "模型",
     "licenseFilter": "按许可证筛选模型",

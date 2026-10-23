@@ -248,7 +248,13 @@ export function TranscriptionsPage() {
     }, recording.selectedInputId || undefined);
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspaceHeader>
+      <WorkspaceHeader
+        models={[
+          ...(mode === 'accurate' ? ['asr' as const] : []),
+          'dictation',
+          { family: 'llm', skill: 'dictation_refinement' },
+        ]}
+      >
         <h1 className="text-sm font-medium">{t('nav.transcribe')}</h1>
       </WorkspaceHeader>
       <div className="flex min-h-0 flex-1 @max-[40rem]:flex-col">

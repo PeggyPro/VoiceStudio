@@ -373,6 +373,11 @@
     "collapse": "Fäll ihop panelen",
     "edit": "Redigera röstprofil"
   },
+  "pageModels": {
+    "title": "Sidans modeller",
+    "unknownModel": "Modell inte rapporterad",
+    "openSettings": "Öppna modellinställningar för {{family}}"
+  },
   "modelSettings": {
     "models": "Modeller",
     "licenseFilter": "Filtrera modeller efter licens",

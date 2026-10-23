@@ -4046,15 +4046,33 @@ def _offline_asr_repo(backend_id: str | None = None) -> str | None:
     return None
 
 
-def _capture_whisper_repo() -> str | None:
+def _capture_whisper_repo(*, require_available: bool = False) -> str | None:
     """The HF repo :func:`get_capture_asr_backend`'s non-sherpa fallback chain
     would download — same order, but WITHOUT constructing a backend. ``None``
-    means the selection can't be preflighted (the caller fails open)."""
+    means the selection can't be preflighted (the caller fails open).
+
+    Metadata callers use ``require_available`` to honour the warm singleton
+    the picker would reuse and fail closed when even PyTorch is unavailable.
+    The existing install preflight retains its cold-selection semantics.
+    """
     # Mirrors the picker's parakeet-mlx step exactly (availability + installed
     # weights + the language gate): because that step is gated on the weights
     # being installed, when it wins the preflight is trivially satisfied
     # (installed state is what the gate checked).
-    if _capture_prefers_parakeet():
+    prefer_parakeet = _capture_prefers_parakeet()
+    if require_available:
+        with _capture_backend_lock:
+            backend = _capture_backend
+            auto_key = f"auto:parakeet={int(prefer_parakeet)}"
+            if backend is not None and _capture_backend_key == auto_key:
+                if isinstance(backend, PyTorchWhisperBackend) and backend._pipe is not None:
+                    # A loaded pipeline may predate the current model pref.
+                    # If its identity is unavailable, do not invent that pref.
+                    model = getattr(backend._pipe, "model", None)
+                    return _licence_repo(getattr(model, "name_or_path", None))
+                repos = backend_model_repos(backend)
+                return repos[0] if len(repos) == 1 else None
+    if prefer_parakeet:
         return os.environ.get("ASR_MODEL_PARAKEET_MLX", _PARAKEET_MLX_DEFAULT)
     ok, _ = MLXWhisperBackend.is_available()
     if ok:
@@ -4066,6 +4084,8 @@ def _capture_whisper_repo() -> str | None:
         # OPEN rather than coerce to the default repo and demand a download
         # of a model the user never picked.
         return _fw_repo(faster_whisper_model_id())
+    if require_available and not PyTorchWhisperBackend.is_available()[0]:
+        return None
     return pytorch_whisper_model_id()
 
 

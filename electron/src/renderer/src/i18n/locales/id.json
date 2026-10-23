@@ -373,6 +373,11 @@
     "collapse": "Ciutkan panel",
     "edit": "Edit profil suara"
   },
+  "pageModels": {
+    "title": "Model halaman",
+    "unknownModel": "Model tidak dilaporkan",
+    "openSettings": "Buka pengaturan model {{family}}"
+  },
   "modelSettings": {
     "models": "Model",
     "licenseFilter": "Filter model berdasarkan lisensi",

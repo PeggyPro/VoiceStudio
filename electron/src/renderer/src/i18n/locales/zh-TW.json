@@ -373,6 +373,11 @@
     "collapse": "收合面板",
     "edit": "編輯聲音檔案"
   },
+  "pageModels": {
+    "title": "本頁模型",
+    "unknownModel": "未回報模型",
+    "openSettings": "開啟 {{family}} 模型設定"
+  },
   "modelSettings": {
     "models": "模型",
     "licenseFilter": "依授權條款篩選模型",

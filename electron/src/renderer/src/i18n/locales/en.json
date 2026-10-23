@@ -720,6 +720,11 @@
     "collapse": "Collapse pane",
     "edit": "Edit voice profile"
   },
+  "pageModels": {
+    "title": "Page models",
+    "unknownModel": "Model not reported",
+    "openSettings": "Open {{family}} model settings"
+  },
   "modelSettings": {
     "models": "Models",
     "licenseFilter": "Filter models by licence",

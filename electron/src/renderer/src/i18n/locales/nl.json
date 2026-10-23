@@ -373,6 +373,11 @@
     "collapse": "Paneel inklappen",
     "edit": "Stemprofiel bewerken"
   },
+  "pageModels": {
+    "title": "Modellen op deze pagina",
+    "unknownModel": "Model niet gemeld",
+    "openSettings": "Modelinstellingen voor {{family}} openen"
+  },
   "modelSettings": {
     "models": "Modellen",
     "licenseFilter": "Modellen filteren op licentie",

@@ -381,6 +381,11 @@
     "collapse": "طي اللوحة",
     "edit": "تعديل الملف الصوتي"
   },
+  "pageModels": {
+    "title": "نماذج الصفحة",
+    "unknownModel": "لم يُبلَّغ عن النموذج",
+    "openSettings": "افتح إعدادات نماذج {{family}}"
+  },
   "modelSettings": {
     "models": "النماذج",
     "licenseFilter": "تصفية النماذج حسب الترخيص",

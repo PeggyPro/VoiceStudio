@@ -51,6 +51,7 @@ const catalogue = {
       repo_id: 'test/voice-model',
       label: 'Voice model',
       role: 'TTS',
+      license_info: { license_category: 'commercial' },
       size_gb: 1,
       installed: false,
       supported: true,

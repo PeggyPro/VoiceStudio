@@ -6,6 +6,7 @@ import { EngineNotice } from '@/components/engine-notice';
 import { AgentFixButton } from '@/components/agent-fix-button';
 import { getBridge } from '@/components/bridge';
 import { WorkspaceHeader } from '@/components/app-shell/workspace-header';
+import type { PageModelSpec } from '@/components/app-shell/page-models';
 import { Switch } from '@/components/ui/switch';
 import { MAX_COOKIE_EXPORT_BYTES } from '@shared/utils/cookieExport';
 import { hasCompleteTranslation, multiLangTargets } from '@shared/utils/multiLang';
@@ -962,9 +963,41 @@ export function DubPage() {
       setRecoveringAsr(false);
     }
   };
+  const usesTranslationEngine = session.quality !== 'agent' || !selectedTranslationAgent;
+  const usesTranslationRefinement = usesTranslationEngine && session.quality !== 'fast';
+  const models: PageModelSpec[] = [
+    'asr',
+    'diarisation',
+    !usesTranslationEngine && selectedTranslationAgent
+      ? {
+          family: 'translation',
+          identity: {
+            label: selectedTranslationAgent.label,
+            engine: selectedTranslationAgent.id,
+            loaded: false,
+            available: true,
+          },
+        }
+      : 'translation',
+    'tts',
+  ];
+  if (usesTranslationRefinement && provider?.id !== 'openai')
+    models.push({ family: 'llm', skill: 'cinematic_translation' });
+  if (
+    usesTranslationRefinement ||
+    (usesTranslationEngine && session.condenseSuggest) ||
+    (session.quality === 'agent' &&
+      !session.agentCli &&
+      session.segments.some((segment) => segment.agent_generated_lang))
+  )
+    models.push({ family: 'llm', skill: 'slot_fitting' });
+  if (glossaryOpen && code && session.jobId && session.segments.length > 0)
+    models.push({ family: 'llm', skill: 'glossary_extract' });
+  if (session.segments.some((segment) => segment.direction?.trim()))
+    models.push({ family: 'llm', skill: 'direction_parse' });
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspaceHeader>
+      <WorkspaceHeader models={models}>
         <h1 className="text-sm font-medium">{t('dubWorkspace.title')}</h1>
         <Link to="/projects" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
           {t('projects.title')}

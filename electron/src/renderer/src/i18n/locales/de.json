@@ -373,6 +373,11 @@
     "collapse": "Bereich einklappen",
     "edit": "Stimmprofil bearbeiten"
   },
+  "pageModels": {
+    "title": "Modelle dieser Seite",
+    "unknownModel": "Modell nicht gemeldet",
+    "openSettings": "Modelleinstellungen für {{family}} öffnen"
+  },
   "modelSettings": {
     "models": "Modelle",
     "licenseFilter": "Modelle nach Lizenz filtern",

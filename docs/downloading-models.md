@@ -22,6 +22,17 @@ The TTS model chosen by the active engine has a **Selected** badge and a
 highlighted card, even before its weights are loaded. **Installed** means its
 files are on disk; **In memory** indicates loaded weights.
 
+Functional pages show compact **Category / Model** cards for the model families
+they use. Each card identifies the current selection; **In memory** appears only
+when the runtime confirms the selected weights are resident. A running sidecar
+process alone does not confirm this. Open a card to go to that family's model
+settings, or hover it to see the full model repository/path.
+For transcription, **Fast** uses the voice typing model and **Accurate** uses the
+ASR model; live dictation still uses the explicitly selected voice typing model.
+Calls show the effective capture model, including environment pins and automatic
+fallbacks. These cards describe current configuration, not models used for a
+past recording. Translation cards may show the selected provider.
+
 ## Download backend: legacy LFS by default (accurate progress)
 
 VoiceStudio ships `hf_xet` (Hugging Face's chunked, parallel, dedup transfer

@@ -373,6 +373,11 @@
     "collapse": "Paneli daralt",
     "edit": "Ses profilini düzenle"
   },
+  "pageModels": {
+    "title": "Sayfa modelleri",
+    "unknownModel": "Model bildirilmedi",
+    "openSettings": "{{family}} model ayarlarını aç"
+  },
   "modelSettings": {
     "models": "Modeller",
     "licenseFilter": "Modelleri lisansa göre filtrele",

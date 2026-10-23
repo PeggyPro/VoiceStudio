@@ -78,8 +78,9 @@ def _family_payload(family: str, module):
             key = prefs.resolve("mlx_audio_model_id", env="OMNIVOICE_MLX_AUDIO_MODEL", default=cls.DEFAULT_MODEL_KEY)
             model = cls.CURATED_MODELS.get(key, key)
         else:
+            model = tts_backend.configured_model_identity(active)
             instance = getattr(tts_backend, "_active_instance", None)
-            if instance is not None and getattr(tts_backend, "_active_instance_id", None) == active:
+            if model is None and instance is not None and getattr(tts_backend, "_active_instance_id", None) == active:
                 model = instance.model_identity()
     backends = public_backends(module.list_backends())
     if family == "tts":
