@@ -582,11 +582,38 @@ def _typed_speech_http_error(e: Exception) -> Optional[HTTPException]:
 
 
 def _run_tts(backend, text: str, kw: dict):
-    """Run TTS inference in the GPU thread pool."""
+    """Run TTS inference in the GPU thread pool.
+
+    Keep the OpenAI-compatible route on the same long-form path as /generate.
+    CosyVoice 3 adds a prompt marker before inference; that marker disables
+    CosyVoice's own text frontend splitting, so sending a long request through
+    one backend call can make the model skip, repeat, or reorder spoken text.
+    Splitting here also covers callers that use /v1/audio/speech directly.
+    """
     import torch
     from services.audio_dsp import apply_mastering, normalize_audio, trim_speech_padding
+    from services.chunked_tts import (
+        DEFAULT_CROSSFADE_MS, concatenate_audio_chunks, split_text_into_chunks,
+    )
     from services.watermark import mark_synthetic
-    wav = backend.generate(text, **kw)
+
+    text_chunks = split_text_into_chunks(text)
+    if len(text_chunks) > 1:
+        parts = []
+        for index, chunk_text in enumerate(text_chunks):
+            chunk_kw = dict(kw)
+            # A duration targets the whole request. The native /generate path
+            # uses model-selected duration for each long-text chunk as well.
+            if "duration" in chunk_kw:
+                chunk_kw["duration"] = None
+            if chunk_kw.get("seed") is not None:
+                chunk_kw["seed"] = chunk_kw["seed"] + index
+            parts.append(backend.generate(chunk_text, **chunk_kw))
+        wav = concatenate_audio_chunks(
+            parts, backend.sample_rate, DEFAULT_CROSSFADE_MS, texts=text_chunks,
+        )
+    else:
+        wav = backend.generate(text, **kw)
     sr = backend.sample_rate
     # Strip the engine's lead-in/tail silence, as /generate does — unless the
     # caller asked for an exact `duration`, which a trim would shorten.

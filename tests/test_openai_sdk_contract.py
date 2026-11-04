@@ -130,6 +130,28 @@ def test_speech_every_format_is_really_that_format(client, engine, fmt):
     assert check(body), (fmt, body[:16])
 
 
+def test_speech_long_dense_input_uses_ordered_chunks(client, engine):
+    """The /v1 route must not send long dense-script text in one shot.
+
+    This is the regression for CosyVoice 3: its system-prompt marker disables
+    the upstream text frontend splitter, so the route must bound the request
+    before it reaches the engine and preserve chunk order.
+    """
+    from services.chunked_tts import split_text_into_chunks
+
+    text = (chr(0x7532) * 150 + chr(0x3002)) * 4
+    expected = split_text_into_chunks(text)
+    engine.calls = []
+
+    client.audio.speech.create(
+        model="tts-1", voice="alloy", input=text, response_format="wav",
+    )
+
+    assert [call_text for call_text, _ in engine.calls] == expected
+    assert len(engine.calls) == len(expected) >= 2
+    assert all(len(call_text) <= 320 for call_text, _ in engine.calls)
+
+
 def test_wav_keeps_engine_rate(client, engine):
     body = client.audio.speech.create(
         model="tts-1", voice="alloy", input="Hello.", response_format="wav",

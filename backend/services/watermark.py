@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import logging
 
 from core.render_trace import timed as _render_timed
@@ -29,6 +30,7 @@ import os
 import threading
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import Optional
 
 import torch
@@ -239,18 +241,33 @@ def _get_detector():
         return _detector
 
 
+_GENERATOR_CHECKPOINT_URL = (
+    "https://huggingface.co/facebook/audioseal/resolve/main/generator_base.pth"
+)
+
+
 def _generator_checkpoint_cached() -> bool:
     """Return whether AudioSeal can warm without contacting Hugging Face.
 
-    AudioSeal 0.2 stores the checkpoint in ``<cache>/audioseal`` even though
-    it uses huggingface_hub to fetch it. Keep startup local-first: an ordinary
-    boot may consume that file, but must never turn prefetch into a download.
+    AudioSeal versions use two cache naming schemes for this public checkpoint:
+    newer releases may keep ``generator_base.pth`` while the torch hub fallback
+    keeps the first 24 characters of the SHA-1 of the URL path. Treat either
+    non-empty file as a local cache hit, and ignore interrupted zero-byte files.
     """
     cache_root = os.environ.get("AUDIOSEAL_CACHE_DIR") or os.environ.get(
         "XDG_CACHE_HOME"
     )
     root = Path(cache_root).expanduser() if cache_root else Path.home() / ".cache"
-    return (root / "audioseal" / "generator_base.pth").is_file()
+    cache_dir = root / "audioseal"
+    url_path = urlparse(_GENERATOR_CHECKPOINT_URL).path
+    hashed_name = hashlib.sha1(url_path.encode("utf-8")).hexdigest()[:24]
+    return any(
+        candidate.is_file() and candidate.stat().st_size > 0
+        for candidate in (
+            cache_dir / "generator_base.pth",
+            cache_dir / hashed_name,
+        )
+    )
 
 
 def prefetch_generator(*, allow_download: bool = False) -> None:
