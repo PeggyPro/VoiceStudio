@@ -389,8 +389,8 @@ def mark_synthetic(
     without provenance marking again.
 
     Semantics are exactly :func:`embed_watermark`'s (named delegation, not new
-    policy): gated on the user's ``watermark.invisible`` pref unless
-    ``force=True``, a no-op when AudioSeal isn't installed, and it NEVER
+    policy): gated on the user's ``watermark.invisible`` pref, a no-op when
+    AudioSeal isn't installed, and it NEVER
     raises — on any failure the original audio passes through unchanged, so
     marking can never break generation (the same degrade-don't-block contract
     generation.py has always had).
@@ -510,17 +510,18 @@ def embed_watermark(
         waveform: Audio tensor of shape (channels, samples) or (1, channels, samples)
         sample_rate: Sample rate of the audio
         message: Optional 16-bit message (list of 0/1). Defaults to OMNI_MESSAGE.
-        force: Keyword-only. When True, bypass the user's invisible-watermark
-            preference (``is_enabled()``) and embed regardless — used by the
-            persona-preview path, which mandates a watermark at package time.
-            It does NOT bypass availability: when AudioSeal isn't installed the
-            call still no-ops and returns the input unchanged. Existing
-            positional call sites default to ``force=False`` (unchanged).
+        force: Keyword-only compatibility flag retained for callers that
+            distinguish mandatory package previews. A disabled global
+            ``watermark.invisible`` preference always wins, so this flag cannot
+            write a watermark while invisible watermarking is turned off.
 
     Returns:
         Watermarked waveform (same shape as input).
     """
-    if (not force and not is_enabled()) or not _check_available():
+    # The user preference is a global safety switch. Keep ``force`` for API
+    # compatibility, but never let a special packaging path override an
+    # explicit request to disable invisible audio watermarking.
+    if not is_enabled() or not _check_available():
         return waveform
 
     try:
