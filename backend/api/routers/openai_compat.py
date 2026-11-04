@@ -1242,6 +1242,11 @@ def _model_entry(model_id: str, kind: str, alias: bool) -> dict:
         "object": "model",
         "created": 0,
         "owned_by": "voicestudio",
+        # Canvas uses the OpenAI-compatible catalog to classify both TTS and
+        # STT entries. They are audio models even though their route roles
+        # differ, so expose the capability explicitly instead of relying on
+        # model-name heuristics.
+        "model_type": "audio",
         # VoiceStudio extension: what the id does here.
         "voicestudio": {"kind": kind, "alias_for_active_engine": alias},
     }
