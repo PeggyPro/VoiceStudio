@@ -509,6 +509,8 @@ class SubprocessBackend(TTSBackend):
         #     past our length-prefix reads.
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
+        # Keep text diagnostics stable across Windows locale settings.
+        env["PYTHONIOENCODING"] = "utf-8"
 
         kwargs: dict = {
             "stdin": subprocess.PIPE,
@@ -1122,7 +1124,7 @@ class SubprocessBackend(TTSBackend):
         try:
             for raw in iter(proc.stderr.readline, b""):
                 try:
-                    line = raw.decode("utf-8", errors="replace").rstrip()
+                    line = _decode_stderr_line(raw).rstrip()
                 except Exception:
                     line = repr(raw)
                 line = scrub_text(line)
@@ -1135,6 +1137,14 @@ class SubprocessBackend(TTSBackend):
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
+
+
+def _decode_stderr_line(raw: bytes) -> str:
+    """Decode child stderr as UTF-8 with a legacy Windows fallback."""
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("gb18030", errors="replace")
 
 
 def _read_exact(stream, n: int) -> Optional[bytes]:

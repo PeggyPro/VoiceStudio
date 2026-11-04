@@ -27,12 +27,19 @@ from pathlib import Path
 
 import pytest
 
-from services.subprocess_backend import RECV_TIMEOUT_S, SubprocessBackend
+from services.subprocess_backend import RECV_TIMEOUT_S, SubprocessBackend, _decode_stderr_line
 from services.tts_backend import OmniVoiceBackend, get_backend_class, list_backends
 from engines.omnivoice_subprocess import (
     OmniVoiceMPSSubprocessBackend,
     OmniVoiceSubprocessBackend,
 )
+
+
+def test_subprocess_stderr_decodes_utf8_and_legacy_gbk():
+    """Windows child diagnostics remain readable across locale boundaries."""
+    text = "合成文本：欢迎使用中文"
+    assert _decode_stderr_line(text.encode("utf-8")) == text
+    assert _decode_stderr_line(text.encode("gb18030")) == text
 
 
 # ── stub sidecar (model-free) ──────────────────────────────────────────────
@@ -398,6 +405,7 @@ def test_sidecar_spawn_delegates_all_containment_to_nested_owner(monkeypatch, tm
     try:
         backend._spawn()
         assert not ({"start_new_session", "creationflags", "preexec_fn"} & captured.keys())
+        assert captured["env"]["PYTHONIOENCODING"] == "utf-8"
     finally:
         backend._proc = None
 
