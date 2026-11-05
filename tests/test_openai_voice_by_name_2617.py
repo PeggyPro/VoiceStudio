@@ -124,6 +124,35 @@ def test_profile_name_resolves_case_insensitively(client, engine, profiles):
         assert "voice" not in kw
 
 
+def test_empty_clone_profile_transcribes_before_speech_and_caches(client, engine, profiles, monkeypatch):
+    """An API clone must use the same zero-shot conditioning as /generate."""
+    pid = profiles(f"Empty clone {profiles.stem}")
+    calls = []
+    from services import asr_backend
+    monkeypatch.setattr(
+        asr_backend,
+        "transcribe_reference",
+        lambda path: calls.append(path) or "reference words",
+    )
+
+    import importlib
+    compat = importlib.import_module("api.routers.openai_compat")
+
+    async def _run_inline(fn, **_kwargs):
+        return fn()
+
+    monkeypatch.setattr(compat, "run_on_gpu_pool_guarded", _run_inline)
+    res = _speak(client, pid)
+    assert res.status_code == 200, res.text
+    assert calls and calls[0].endswith(f"{pid}.wav")
+    assert engine.calls[-1]["ref_text"] == "reference words"
+
+    from core.db import db_conn
+    with db_conn() as conn:
+        row = conn.execute("SELECT ref_text FROM voice_profiles WHERE id=?", (pid,)).fetchone()
+    assert row["ref_text"] == "reference words"
+
+
 def test_voice_object_name_resolves_too(client, engine, profiles):
     name = f"Object {profiles.stem}"
     pid = profiles(name)

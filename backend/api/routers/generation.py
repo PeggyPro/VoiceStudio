@@ -1260,6 +1260,7 @@ def _run_backend_inference(
     max_chunk_chars=None, crossfade_ms=None, *, t_shift=None,
     layer_penalty_factor=None, position_temperature=None,
     class_temperature=None, dropped_sink=None, preset_voice=None,
+    extra_kwargs=None, omit_empty_conditioning=False,
 ):
     """Engine-aware twin of :func:`_run_inference` (issue #312).
 
@@ -1282,6 +1283,20 @@ def _run_backend_inference(
             instruct=instruct, num_step=num_step, guidance_scale=guidance_scale,
             speed=speed, denoise=denoise, postprocess_output=postprocess_output,
         )
+        if omit_empty_conditioning:
+            # OpenAI preset voices should retain the backend defaults when no
+            # reference was supplied; native /generate keeps its historical
+            # complete conditioning payload.
+            if ref_audio_path is None:
+                gen_kwargs.pop("ref_audio", None)
+            if ref_text is None:
+                gen_kwargs.pop("ref_text", None)
+        if extra_kwargs:
+            # Extension fields belong to the route that owns them (for example
+            # OpenAI's internal chunk controls), while the shared loop owns
+            # ordering, pause handling, seeding, and dropped-chunk reporting.
+            gen_kwargs.update({k: v for k, v in extra_kwargs.items()
+                               if v is not None})
         if preset_voice:
             gen_kwargs["voice"] = preset_voice
         native_proxy = bool(

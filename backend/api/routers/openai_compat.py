@@ -581,58 +581,53 @@ def _typed_speech_http_error(e: Exception) -> Optional[HTTPException]:
     return None
 
 
-def _run_tts(backend, text: str, kw: dict):
-    """Run TTS inference in the GPU thread pool.
+def _run_tts(backend, text: str, kw: dict, *, dropped_sink=None):
+    """Run OpenAI speech through the shared ``/generate`` inference loop.
 
-    Keep the OpenAI-compatible route on the same long-form path as /generate.
-    CosyVoice 3 adds a prompt marker before inference; that marker disables
-    CosyVoice's own text frontend splitting, so sending a long request through
-    one backend call can make the model skip, repeat, or reorder spoken text.
-    Splitting here also covers callers that use /v1/audio/speech directly.
+    The API keeps its OpenAI response encoding and final lightweight DSP, while
+    the native helper owns pause markers, chunk boundaries, per-chunk RNG,
+    backend seed capability, and dropped-chunk reporting.
     """
     import torch
+    from api.routers.generation import _run_backend_inference
     from services.audio_dsp import apply_mastering, normalize_audio, trim_speech_padding
-    from services.chunked_tts import (
-        DEFAULT_CROSSFADE_MS, concatenate_audio_chunks, split_text_into_chunks,
-    )
     from services.watermark import mark_synthetic
 
-    text_chunks = split_text_into_chunks(text)
-    if len(text_chunks) > 1:
-        parts = []
-        for index, chunk_text in enumerate(text_chunks):
-            chunk_kw = dict(kw)
-            # A duration targets the whole request. The native /generate path
-            # uses model-selected duration for each long-text chunk as well.
-            if "duration" in chunk_kw:
-                chunk_kw["duration"] = None
-            if chunk_kw.get("seed") is not None:
-                chunk_kw["seed"] = chunk_kw["seed"] + index
-            parts.append(backend.generate(chunk_text, **chunk_kw))
-        wav = concatenate_audio_chunks(
-            parts, backend.sample_rate, DEFAULT_CROSSFADE_MS, texts=text_chunks,
-        )
-    else:
-        wav = backend.generate(text, **kw)
+    extra = {
+        key: kw[key]
+        for key in ("preprocess_prompt", "chunk_duration", "chunk_threshold", "description")
+        if key in kw
+    }
+    wav = _run_backend_inference(
+        backend,
+        text,
+        kw.get("language"),
+        kw.get("ref_audio"),
+        kw.get("ref_text"),
+        kw.get("instruct"),
+        kw.get("duration"),
+        kw.get("num_step", 16),
+        kw.get("guidance_scale", 2.0),
+        kw.get("speed", 1.0),
+        kw.get("denoise", True),
+        kw.get("postprocess_output", True),
+        kw.get("seed"),
+        effect_preset="raw",
+        max_chunk_chars=None,
+        crossfade_ms=None,
+        dropped_sink=dropped_sink,
+        preset_voice=kw.get("voice"),
+        extra_kwargs=extra,
+        omit_empty_conditioning=True,
+    )
     sr = backend.sample_rate
-    # Strip the engine's lead-in/tail silence, as /generate does — unless the
-    # caller asked for an exact `duration`, which a trim would shorten.
+    # Strip the engine's lead-in/tail silence, as the API did before sharing
+    # the inference loop — unless the caller asked for an exact duration.
     if not kw.get("duration") and torch.is_tensor(wav):
         wav = trim_speech_padding(wav, sr)
-    # Engines that already emit mastered, studio-grade audio (e.g. VoxCPM2's
-    # native 48 kHz) opt out of apply_mastering via `applies_own_mastering`.
-    # That chain's highpass + Compressor is tuned for VoiceStudio's 24 kHz clone
-    # output; applied to a studio engine it adds an audible level pump that
-    # degrades the very output we want clean. Loudness normalisation still
-    # runs — it's a benign peak scale, not dynamics.
     if not getattr(backend, "applies_own_mastering", False):
         wav = apply_mastering(wav, sample_rate=sr)
     wav = normalize_audio(wav, target_dBFS=-2.0)
-    # Invisible AudioSeal provenance mark at the tensor stage, before any
-    # container encoding (#1169 — this route used to return unmarked audio
-    # while /generate marked the same text). Same failure semantics as
-    # /generate: pref-gated, no-op without AudioSeal, passes audio through
-    # unchanged on any failure — never blocks the response.
     wav = mark_synthetic(wav, sr, context="openai_compat.speech")
     return wav, sr
 
@@ -733,32 +728,84 @@ async def create_speech(req: SpeechRequest):
     # uses the engine default; a voice-profile id, then a profile name
     # (#2617), resolves the reference clip; anything else is forwarded as an
     # engine preset (e.g. KittenTTS).
+    persist_ref_text_profile_id = None
     voice = req.voice
     if not _name_is_reserved(voice):
         row = _resolve_voice_profile(voice)
         if row:
-            from core.config import VOICES_DIR
-            if row["is_locked"] and row["locked_audio_path"]:
-                kw["ref_audio"] = contained_join(VOICES_DIR, row["locked_audio_path"])
-            elif row["ref_audio_path"]:
-                kw["ref_audio"] = contained_join(VOICES_DIR, row["ref_audio_path"])
-            if row["ref_text"]:
-                kw["ref_text"] = row["ref_text"]
-            if row["instruct"] and not instruct:
-                kw["instruct"] = row["instruct"]
-            if req.seed is None and row["seed"] is not None:
-                kw["seed"] = row["seed"]
+            # Keep profile kind, lock precedence, design divergence, language,
+            # and stored-seed behavior identical to POST /generate. The old API
+            # branch copied a few columns directly, which made a clone without
+            # ref_text use a different CosyVoice inference mode and made an
+            # edited design keep conditioning on its stale rendered sample.
+            from api.routers.generation import _resolve_profile_conditioning
+
+            cond = _resolve_profile_conditioning(
+                row,
+                instruct=instruct,
+                seed=req.seed,
+                language=req.language,
+            )
+            if cond["ref_audio_path"]:
+                kw["ref_audio"] = cond["ref_audio_path"]
+            if cond["ref_text"]:
+                kw["ref_text"] = cond["ref_text"]
+            if cond["instruct"]:
+                kw["instruct"] = cond["instruct"]
+            if req.language is not None or cond["language"] is not None:
+                # Explicit Auto is represented as None for the engine, matching
+                # /generate instead of sending the literal UI sentinel.
+                kw["language"] = cond["language"]
+            if req.seed is None and cond["seed"] is not None:
+                kw["seed"] = cond["seed"]
+            if cond["persist_ref_text"]:
+                persist_ref_text_profile_id = row["id"]
         else:
             # Not a profile — forward as an engine preset name.
             kw["voice"] = voice
 
-    # Engine-agnostic text normalization (junk strip, numbers→words,
-    # abbreviations) at this route's text→engine choke point — the same
-    # pre-pass as /generate, applied exactly once per request. `req.language`
-    # is everything this route knows about the language (None → universal
-    # safety filters only). Pref-gated (default ON), idempotent, never raises.
+    # /generate auto-transcribes a profile reference with no stored transcript
+    # before selecting CosyVoice's zero-shot path. Keep the OpenAI route on the
+    # same path; otherwise it silently falls back to cross-lingual inference.
+    if kw.get("ref_audio") and not kw.get("ref_text"):
+        from services.asr_backend import transcribe_reference
+        from services.model_manager import generate_timeout_s
+        try:
+            kw["ref_text"] = await run_on_gpu_pool_guarded(
+                lambda: transcribe_reference(kw["ref_audio"]),
+                what="Reference transcribe",
+                timeout=generate_timeout_s("", engine=backend),
+            )
+        except TimeoutError as exc:
+            logger.warning("OpenAI reference transcribe timed out: %s", exc)
+            kw["ref_text"] = None
+        except Exception as exc:  # noqa: BLE001 — model fallback is best effort
+            logger.warning("OpenAI reference transcribe failed: %s", exc)
+            kw["ref_text"] = None
+        if kw.get("ref_text") and persist_ref_text_profile_id:
+            from api.routers.generation import _persist_profile_ref_text
+            _persist_profile_ref_text(
+                persist_ref_text_profile_id, kw["ref_text"],
+            )
+
+    # Match /generate's text choke point: NFC first, then language-aware
+    # normalization, then the pronunciation dictionary. The previous API path
+    # normalized against only the request language (ignoring a profile-filled
+    # language) and skipped pronunciation/inline overrides entirely.
+    import unicodedata
+    text = unicodedata.normalize("NFC", req.input)
     from services.text_normalization import normalize_for_tts
-    text = normalize_for_tts(req.input, req.language)
+    text = normalize_for_tts(text, kw.get("language"))
+    from services.pronunciation import apply_inline_overrides
+    from api.routers.generation import pronunciation_enabled
+    if pronunciation_enabled():
+        from services.pronunciation import apply_pronunciation, load_entries_from_db
+        try:
+            text = apply_pronunciation(text, load_entries_from_db(), kw.get("language"))
+        except Exception:  # noqa: BLE001 — a missing/locked table is a no-op
+            text = apply_inline_overrides(text)
+    else:
+        text = apply_inline_overrides(text)
 
     # VRAM eviction runs in get_model()'s warm-return path now, covering every
     # native TTS generate (this route, WS TTS, dub, batch, audiobook).
@@ -845,6 +892,7 @@ async def create_speech(req: SpeechRequest):
                      "X-OmniVoice-Retryable": "true"},
         ) from e
 
+    dropped_text: list[str] = []
     try:
         # Bounded + pool-reset on hang so a wedged TTS request can't starve the
         # GPU pool and brick the backend (#730 class). The budget is the shared
@@ -852,7 +900,8 @@ async def create_speech(req: SpeechRequest):
         # so long inputs failed here even after v0.3.22 shipped the scaling.
         from services.model_manager import generate_timeout_s
         wav, sr = await run_on_gpu_pool_guarded(
-            lambda: _run_tts(backend, text, kw), what="OpenAI TTS generate",
+            lambda: _run_tts(backend, text, kw, dropped_sink=dropped_text),
+            what="OpenAI TTS generate",
             timeout=generate_timeout_s(text, engine=backend))
     except Exception as e:
         # #1172/#1173: typed failures get their real status + actionable
@@ -876,6 +925,16 @@ async def create_speech(req: SpeechRequest):
         _hr = header_safe_reason(_routing_notice[1])
         if _hr:
             _headers["X-OmniVoice-Routing-Reason"] = _hr
+    # A missing rendered chunk is a successful HTTP request with missing spoken
+    # text unless the binary response carries the same diagnostic as /generate.
+    # Keep the OpenAI body compatible, but make the silent truncation observable
+    # to clients and to this API/runtime comparison.
+    if dropped_text:
+        from services.engine_routing import header_safe_reason
+        _headers["X-OmniVoice-Dropped-Chunks"] = str(len(dropped_text))
+        _lost = header_safe_reason(" | ".join(t for t in dropped_text if t))
+        if _lost:
+            _headers["X-OmniVoice-Dropped-Text"] = _lost
     if req.stream_format == "sse":
         _headers.pop("Content-Disposition")
         return StreamingResponse(_sse_events(audio_bytes), media_type="text/event-stream",
