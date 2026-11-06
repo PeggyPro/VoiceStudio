@@ -272,6 +272,22 @@ def _lang_tag(language) -> str:
     return _LANG_TAGS.get(full) or _LANG_TAGS.get(full[:2], "")
 
 
+def _cross_lingual(model, text: str, ref_audio, *, v3: bool, language):
+    # Upstream skips BOTH normalization and token-aware splitting as soon as
+    # it sees <|...|>. Adding our system/language prefix before inference thus
+    # sent long requests through the model as one utterance, inviting skipped
+    # or invented speech. Split the unprefixed text with the model's own
+    # frontend, then add the required control tokens to EACH resulting piece.
+    # Explicit user-supplied control tokens keep upstream's opt-out semantics.
+    for piece in model.frontend.text_normalize(
+        text, split=True, text_frontend=True,
+    ):
+        tts_text = _v3_prompt(piece) if v3 else f"{_lang_tag(language)}{piece}"
+        yield from model.inference_cross_lingual(
+            tts_text, ref_audio, stream=False, text_frontend=False,
+        )
+
+
 def _run_model(model, msg: dict):
     text = msg.get("text")
     ref_audio = msg.get("ref_audio") or None
@@ -287,8 +303,9 @@ def _run_model(model, msg: dict):
         prompt_text = _v3_prompt(ref_text) if v3 else ref_text
         return model.inference_zero_shot(text, prompt_text, ref_audio, stream=False)
     if ref_audio:
-        tts_text = _v3_prompt(text) if v3 else f"{_lang_tag(msg.get('language'))}{text}"
-        return model.inference_cross_lingual(tts_text, ref_audio, stream=False)
+        return _cross_lingual(
+            model, text, ref_audio, v3=v3, language=msg.get("language"),
+        )
     speakers = model.list_available_spks()
     if not speakers:
         raise ValueError("This CosyVoice model has no built-in voices; pass a reference clip.")

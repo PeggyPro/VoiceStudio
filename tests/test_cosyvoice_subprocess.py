@@ -31,6 +31,9 @@ def _fake_model_class(name, calls, sample_rate=24000):
 
     return type(name, (), {
         "sample_rate": sample_rate,
+        "frontend": types.SimpleNamespace(
+            text_normalize=lambda text, **kwargs: [text],
+        ),
         "inference_instruct2": method("instruct2"),
         "inference_zero_shot": method("zero_shot"),
         "inference_cross_lingual": method("cross_lingual"),
@@ -150,6 +153,69 @@ def test_a_v2_model_keeps_the_in_process_mapping(monkeypatch, tmp_path):
     assert _last_call(calls)[1] == ("hi", "hello", "/r.wav")
     sidecar._handle_synthesize({"text": "hi"}, io.BytesIO())
     assert _last_call(calls)[:2] == ("sft", ("hi", "spk-a"))
+
+
+@pytest.mark.parametrize("model_class,ref_audio,language,prefix", [
+    ("CosyVoice3", None, None, PREFIX),
+    ("CosyVoice3", "/r.wav", "zh", PREFIX),
+    ("CosyVoice2", "/r.wav", "en", "<|en|>"),
+])
+def test_cross_lingual_splits_before_adding_control_tokens(
+    monkeypatch, tmp_path, model_class, ref_audio, language, prefix,
+):
+    """Upstream disables its splitter when it sees any <|...|> token.
+
+    Mimic that upstream guard, and make each normalised sentence produce an
+    identifiable piece of audio. Auto-added prompts must not turn a long
+    request into one unbounded inference or lose/reorder any returned pieces.
+    """
+    import base64
+    import numpy as np
+
+    calls = []
+    sidecar, checkout = _load_sidecar(monkeypatch, tmp_path, calls, model_class=model_class)
+    model = sidecar._load_model(io.BytesIO())
+    source = "Opening sentence.\nPreviously skipped middle sentence.\nFinal sentence."
+    sentences = source.split("\n")
+    normalised = []
+    generated = []
+
+    def text_normalize(text, split=True, text_frontend=True):
+        if "<|" in text and "|>" in text:
+            text_frontend = False
+        if not text_frontend:
+            return [text] if split else text
+        normalised.append(text)
+        return text.split("\n") if split else text
+
+    def inference(text, clip, **kwargs):
+        for segment in text_normalize(text, **{
+            k: v for k, v in kwargs.items() if k == "text_frontend"
+        }):
+            generated.append((segment, clip))
+            yield {"tts_speech": torch.full((1, 100), len(generated) / 10)}
+
+    model.frontend.text_normalize = text_normalize
+    monkeypatch.setattr(model, "inference_cross_lingual", inference)
+    out = io.BytesIO()
+    sidecar._handle_synthesize({
+        "text": source, "ref_audio": ref_audio, "language": language,
+    }, out)
+    clip = ref_audio or str(checkout / "asset" / "zero_shot_prompt.wav")
+    assert generated == [(prefix + sentence, clip) for sentence in sentences]
+    assert normalised == [source]
+    audio = _frames(out)[-1]
+    pcm = np.frombuffer(base64.b64decode(audio["audio_pcm_b64"]), dtype=np.int16)
+    assert audio["n_samples"] == 300
+    assert [int(pcm[i * 100]) for i in range(3)] == [3276, 6553, 9830]
+
+
+def test_cross_lingual_preserves_explicit_prompt_and_control_tags(monkeypatch, tmp_path):
+    calls = []
+    sidecar, _ = _load_sidecar(monkeypatch, tmp_path, calls)
+    text = "Custom instruction.<|endofprompt|>[breath]Hello."
+    sidecar._handle_synthesize({"text": text, "ref_audio": "/r.wav"}, io.BytesIO())
+    assert _last_call(calls)[1] == (text, "/r.wav")
 
 
 def test_a_model_folder_override_is_honoured(monkeypatch, tmp_path):
