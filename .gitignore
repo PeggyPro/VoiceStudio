@@ -193,3 +193,4 @@ backend/assets/samples/demo/dubbing/*.src.wav
 # handoff (canonical in vssaas) and Microsoft Store listing text drafts.
 /account_login/
 /store-*-en.txt
+artifacts
